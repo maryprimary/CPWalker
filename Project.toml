@@ -1,0 +1,9 @@
+name = "CPWalker"
+uuid = "8c4d2f95-92f8-46bb-a37c-9a3fd8571ea3"
+authors = ["mary <maryprimary@outlook.com>"]
+version = "0.1.1"
+
+[deps]
+LatticeHamiltonian = "975dfee0-c77a-4875-9b7e-98d523def842"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
