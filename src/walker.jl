@@ -70,21 +70,21 @@ function update_overlap!(wlk::HSWalker2, ham::HamConfig2, weight_update::Bool)
     ovlp_inv1 = ham.ΦtT[1] * wlk.Φ[1]
     #ovlp
     detovlp1 = det(ovlp_inv1)
-    #if detovlp1 < 1e-5
-    #    wlk.weight = 0.
-    #    wlk.overlap = 0.
-    #    return
-    #end
+    if weight_update && detovlp1 < 1e-5
+        wlk.weight = 0.
+        wlk.overlap = 0.
+        return
+    end
     invovlp1 = inv(ovlp_inv1)
     #第二个
     ovlp_inv2 = ham.ΦtT[2] * wlk.Φ[2]
     #ovlp
     detovlp2 = det(ovlp_inv2)
-    #if detovlp2 < 1e-5
-    #    wlk.weight = 0.
-    #    wlk.overlap = 0.
-    #    return
-    #end
+    if weight_update && detovlp2 < 1e-5
+        wlk.weight = 0.
+        wlk.overlap = 0.
+        return
+    end
     invovlp2 = inv(ovlp_inv2)
     #
     ovlpnew = detovlp1 * detovlp2
@@ -139,6 +139,8 @@ function stablize!(wlk::HSWalker2, ham::HamConfig2)
     if wlk.weight < 1e-8
         return
     end
+    tempwlkphi1 = copy(wlk.Φ[1].V)
+    tempwlkphi2 = copy(wlk.Φ[2].V)
     #第一个flavour
     slasize = size(wlk.Φ[1].V)
     rescale = 1.0
@@ -172,6 +174,10 @@ function stablize!(wlk::HSWalker2, ham::HamConfig2)
     #stablize中更新overlap不更新weight
     update_overlap!(wlk, ham, false)
     if abs(testoverlap - wlk.overlap) > 1e-6
+        println(testoverlap, " ", wlk.overlap)
+        println(wlk)
+        println(tempwlkphi1)
+        println(tempwlkphi2)
         throw(error("precision low"))
     end
 end

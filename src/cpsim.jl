@@ -22,12 +22,42 @@ function CPSim2(ham::HamConfig2, walkers::Vector{HSWalker2},
 end
 
 
-function initialize_simulation!(cpsim::CPSim2)
+function initialize_simulation!(cpsim::CPSim2, u_lower=false)
     initeqgr = get_eqgr_without_back(cpsim.hamiltonian, cpsim.walkers[1])
     if !ismissing(cpsim.E_trial)
         throw(error("is initialized"))
     end
-    cpsim.E_trial = cal_energy(initeqgr, cpsim.hamiltonian)
+    ham = cpsim.hamiltonian
+    syssize = size(ham.H0.V)
+    sysengr = 0.
+    #hopping
+    for st1 = 1:1:syssize[1]
+        for st2 = 1:1:syssize[2]
+            sysengr += ham.H0.V[st1, st2] * initeqgr.V[st1, st2, 1]
+            sysengr += ham.H0.V[st1, st2] * initeqgr.V[st1, st2, 2]
+        end
+    end
+    #println(sysengr)
+    #interaction
+    for opidx = 1:1:length(ham.Mzints)
+        mint = ham.Mzints[opidx]
+        axfld = ham.Axflds[opidx]
+        st1, fl1 = mint[1], mint[2]
+        st2, fl2 = mint[3], mint[4]
+        u = (axfld.ΔV[1, 1] + 1)*(axfld.ΔV[1, 2] + 1)
+        u = -log(u) / ham.dτ
+        #修正HF精度下的U
+        if u_lower
+            u = log(u+1)
+        end
+        #
+        sysengr += u*initeqgr.V[st1, st1, fl1]*initeqgr.V[st2, st2, fl2]
+        #sysengr -= (0.5*u*eqgr.V[st1, st1, fl1] + 0.5*u*eqgr.V[st2, st2, fl2])
+        if fl1 == fl2
+            sysengr += -u*eqgr.V[st1, st2, fl1]*eqgr.V[st2, st1, fl1]
+        end
+    end
+    cpsim.E_trial = sysengr
     return initeqgr
 end
 
@@ -81,9 +111,17 @@ function E_trial_simulation!(cpsim::CPSim2, epochs::Int64, steps::Int64)
         end
         #exp(Δτ * steps * E_gnd) * wgtsum = length(cpsim.walkers)
         #Δτ * steps * E_gnd = ln(length(cpsim.walkers)/wgtsum)
-        wgtsum = sum([wlk.weight for wlk in cpsim.walkers])
-        #println(wgtsum)
-        egrowth = log(length(cpsim.walkers)/wgtsum) / steps / cpsim.hamiltonian.dτ
+        wgtsum = 0.#sum([wlk.weight for wlk in cpsim.walkers])
+        wlkcount = 0
+        for wlk in cpsim.walkers
+            if wlk.weight < 1e-5
+                continue
+            end
+            wlkcount += 1
+            wgtsum += wlk.weight
+        end
+        println(wgtsum, " ", wlkcount)
+        egrowth = log(wlkcount/wgtsum) / steps / cpsim.hamiltonian.dτ
         growth_engr[epidx] = egrowth
         #
         @Threads.threads for wlk in cpsim.walkers

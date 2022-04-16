@@ -4,7 +4,7 @@
 
 
 
-struct CPMeasure{N, T}
+mutable struct CPMeasure{N, T}
     name :: String
     V :: T
 end

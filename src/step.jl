@@ -27,15 +27,11 @@ function step_slice!(wlk::HSWalker2, ham::HamConfig2, tauidxs::Vector{Int64};
     end
     if ismissing(E_trial)
         @info "missing E_trial"
-    else
-        wlk.weight = exp(length(tauidxs)*ham.dτ*E_trial) * wlk.weight
+        E_trial = 0.
     end
     # e^-0.5ΔtH0 e^ΔtV (e^-0.5ΔtH0 e^-0.5ΔtH0)  e^ΔtV
     #先做用半个H0
-    if abs(wlk.weight) < 1e-5
-        return
-    end
-    #
+    wlk.weight = exp(0.5*ham.dτ*E_trial) * wlk.weight
     multiply_left!(ham.exp_halfdτH0, wlk.Φ[1])
     multiply_left!(ham.exp_halfdτH0, wlk.Φ[2])
     update_overlap!(wlk, ham, true)
@@ -50,6 +46,7 @@ function step_slice!(wlk::HSWalker2, ham::HamConfig2, tauidxs::Vector{Int64};
                 return
             end
         end
+        wlk.weight = exp(ham.dτ*E_trial) * wlk.weight
         multiply_left!(ham.exp_dτH0, wlk.Φ[1])
         multiply_left!(ham.exp_dτH0, wlk.Φ[2])
         update_overlap!(wlk, ham, true)
@@ -64,6 +61,7 @@ function step_slice!(wlk::HSWalker2, ham::HamConfig2, tauidxs::Vector{Int64};
             return
         end
     end
+    wlk.weight = exp(0.5*ham.dτ*E_trial) * wlk.weight
     multiply_left!(ham.exp_halfdτH0, wlk.Φ[1])
     multiply_left!(ham.exp_halfdτH0, wlk.Φ[2])
     update_overlap!(wlk, ham, true)
