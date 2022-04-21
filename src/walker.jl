@@ -96,6 +96,11 @@ function update_overlap!(wlk::HSWalker2, ham::HamConfig2, weight_update::Bool)
             wlk.weight = ovlpnew / wlk.overlap * wlk.weight
         end
     end
+    if !isfinite(wlk.weight)
+        wlk.weight = 0.
+        #println(ovlpnew, " ", wlk.overlap)
+        #throw(error("b"))
+    end
     wlk.overlap = ovlpnew
     wlk.ovlpinv = (invovlp1, invovlp2)
 end

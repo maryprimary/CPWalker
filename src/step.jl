@@ -231,6 +231,10 @@ function step_int_diff_fl!(wlk::HSWalker2, ham::HamConfig2,
         wlk.weight = wlk.weight / (1 - pt2)
         pt2 = 0
     end
+    #if isnan(wlk.weight)
+    #    println(pt1, " ", pt2)
+    #    throw(error("a"))
+    #end
     #传统方法更新
     #newphi1 = copy(wlk.Φ[fl1].V)
     #newphi1[st1, :] .= (axfld.ΔV[1, fl1]+1) * newphi1[st1, :]
