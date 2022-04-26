@@ -11,13 +11,13 @@ using LatticeHamiltonian
 using LinearAlgebra
 using JLD
 
-L = 2
-Nup = 7
+L = 3
+Nup = 11
 Δτ = 0.01
 
-NWALKERS = 1000
+NWALKERS = 20
 
-U = 3.
+U = 0.
 
 HOPPING_T = -1
 
@@ -91,10 +91,7 @@ end
 """
 function trial_wavefunction(h0, Nup)
     #return uhf_trial(h0, Nup, U)
-    grs = load("etgr.jld")
-    grs = grs["etgr"]
-    h0d = 0.5*(grs[:, :, 1] + grs[:, :, 2])
-    h0d = 0.5*(h0d + h0d')
+    h0d = copy(h0)
     ##nsite = size(h0d)[1]
     ##for ni = 1:1:nsite
     ##    h0d[ni, ni] += 0.01*(rand()-0.5)
@@ -159,21 +156,19 @@ function measurements(ham, wlk, eqgr,
     szmat = zeros(Float64, 3*L^2, 3*L^2)
     for i=1:1:3*L^2; for j=1:1:3*L^2
         if i == j
-            szmat[i, j] = eqgr.V[i, i, 1] + eqgr.V[i, i, 2] -
-            eqgr.V[i, i, 1] * eqgr.V[i, i, 2] * 2
-        else
-            # (niu - nid) (nju - njd)
-            # niu nju
-            szmat[i, j] += eqgr.V[i, i, 1] * eqgr.V[j, j, 1]
-            szmat[i, j] += eqgr.V[i, j, 1] * (-eqgr.V[j, i, 1])
-            # -n1u n2d
-            szmat[i, j] -= eqgr.V[i, i, 1] * eqgr.V[j, j, 2]
-            # -n1d n2u
-            szmat[i, j] -= eqgr.V[i, i, 2] * eqgr.V[j, j, 1]
-            # n1d n2d
-            szmat[i, j] += eqgr.V[i, i, 2] * eqgr.V[j, j, 2]
-            szmat[i, j] += eqgr.V[i, j, 2] * (-eqgr.V[j, i, 2])
+            continue
         end
+        # (niu - nid) (nju - njd)
+        # niu nju
+        szmat[i, j] += eqgr.V[i, i, 1] * eqgr.V[j, j, 1]
+        szmat[i, j] += eqgr.V[i, j, 1] * (-eqgr.V[j, i, 1])
+        # -n1u n2d
+        szmat[i, j] -= eqgr.V[i, i, 1] * eqgr.V[j, j, 2]
+        # -n1d n2u
+        szmat[i, j] -= eqgr.V[i, i, 2] * eqgr.V[j, j, 1]
+        # n1d n2d
+        szmat[i, j] += eqgr.V[i, i, 2] * eqgr.V[j, j, 2]
+        szmat[i, j] += eqgr.V[i, j, 2] * (-eqgr.V[j, i, 2])
     end; end
     spcr_bin[end].V += wlk.weight * szmat
     #
@@ -201,7 +196,7 @@ function main()
     println("igr_dn", [igr.V[idx, idx, 2] for idx=1:1:12])
     println(cpsim.E_trial)
     #exit()
-    relaxation_simulation(cpsim, 2000)
+    relaxation_simulation(cpsim, 50)
     E_trial_simulation!(cpsim, 10, 10)
     println(cpsim.E_trial)
     #
@@ -211,7 +206,7 @@ function main()
     etgr_bin = CPMeasure{:EQGR, Array{Float64, 3}}[]
     #
     meas_bin = 10
-    meas_time = 20
+    meas_time = 10
     initial_meaurements!(cpsim, 40)
     for bidx = 1:1:meas_bin
         push!(whgt_bin, CPMeasure{:SCALE, Float64}("weight", 0.0))
@@ -237,43 +232,47 @@ function main()
     println([spcr.V[1, 2] for spcr in spcr_bin])
     println([spcr.V[1, 3] for spcr in spcr_bin])
     #
-    total_engr, error_engr = postprocess_measurements(engr_bin, whgt_bin)
+    total_engr = 0.
+    for bidx = 1:1:meas_bin
+        total_engr += engr_bin[bidx].V / whgt_bin[bidx].V
+    end
+    total_engr = total_engr / meas_bin
     println("total energy = ", total_engr)
+    error_engr = 0.
+    for bidx = 1:1:meas_bin
+        eng = engr_bin[bidx].V / whgt_bin[bidx].V
+        error_engr += (eng - total_engr)^2
+    end
+    error_engr = sqrt(error_engr / (meas_bin-1))
     println("error energy = ", error_engr)
     #
-    total_spcr, error_spcr = postprocess_measurements(spcr_bin, whgt_bin)
-    spcr_vec = zeros(12, 2)
-    for stx in 1:1:2; for sty in 1:1:2
-        sta = 3*get_index_from_posi(L, stx, sty)-2
-        for x=1:1:2; for y=1:1:2
-            relp = get_index_from_posi(L, x, y)
-            absp = get_index_from_posi(L, stx+x-1, sty+y-1)
-            #a->a
-            relidx = 3*relp - 2
-            spcr_vec[relidx, 1] += total_spcr[sta, 3*absp-2]
-            spcr_vec[relidx, 2] += error_spcr[sta, 3*absp-2]^2
-            #a->b
-            relidx = 3*relp - 1
-            spcr_vec[relidx, 1] += total_spcr[sta, 3*absp-1]
-            spcr_vec[relidx, 2] += error_spcr[sta, 3*absp-1]^2
-            #a->c
-            relidx = 3*relp
-            spcr_vec[relidx, 1] += total_spcr[sta, 3*absp]
-            spcr_vec[relidx, 2] += error_spcr[sta, 3*absp]^2
-        end; end
-    end; end
-    spcr_vec[:, 1] = spcr_vec[:, 1] / 4
-    spcr_vec[:, 2] = sqrt.(spcr_vec[:, 2]) / 4
-    println(spcr_vec)
+    for j=2:1:12
+        tot_szcr = 0.
+        for bidx = 1:1:meas_bin
+            tot_szcr += spcr_bin[bidx].V[1, j] / whgt_bin[bidx].V
+        end
+        tot_szcr = tot_szcr / meas_bin
+        err_szcr = 0.
+        for bidx = 1:1:meas_bin
+            szcr = spcr_bin[bidx].V[1, j] / whgt_bin[bidx].V
+            err_szcr += (szcr - tot_szcr)^2
+        end
+        err_szcr = sqrt(err_szcr/(meas_bin - 1))
+        println("sz(1,"*string(j)*") ", tot_szcr, " ", err_szcr)
+    end
     #
-    avg_eqgr, err_eqgr = postprocess_measurements(etgr_bin, whgt_bin)
+    avg_eqgr = zeros(Float64, 3*L^2, 3*L^2, 2)
+    for bidx = 1:1:meas_bin
+        avg_eqgr += etgr_bin[bidx].V / whgt_bin[bidx].V
+    end
+    avg_eqgr = avg_eqgr / meas_bin
     totp = 0.
     for idx=1:1:12
         println(avg_eqgr[idx, idx, 1], " ", avg_eqgr[idx, idx, 2])
         totp += avg_eqgr[idx, idx, 1]
     end
     println(totp)
-    save("etgr.jld", "etgr", avg_eqgr)
+    #save("etgr.jld", "etgr", avg_eqgr)
 end
 
 

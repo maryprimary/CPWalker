@@ -126,8 +126,8 @@ function construct_frg_hamiltonian2(etgr, fname, h0, L, N)
         hamdn[inta[1], inta[4]] += inta[5] * grup[inta[2], inta[3]]
         hamup[inta[2], inta[3]] += inta[5] * grdn[inta[1], inta[4]]
     end
-    hamup = h0 + 0.5hamup
-    hamdn = h0 + 0.5hamdn
+    hamup = h0 + 20hamup
+    hamdn = h0 + 20hamdn
     for idx=1:1:12
         println(hamup[idx, idx], " ", hamup[idx, idx])
     end

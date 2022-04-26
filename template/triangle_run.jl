@@ -11,11 +11,11 @@ using LatticeHamiltonian
 using LinearAlgebra
 using JLD
 
-L = 2
+L = 4
 Nup = 7
 Δτ = 0.01
 
-NWALKERS = 1000
+NWALKERS = 400
 
 U = 3.
 
@@ -54,33 +54,21 @@ end
 获得hopping矩阵
 """
 function hopping_matrix(L, HOPPING_T)
-    h0 = zeros(3*L^2, 3*L^2)
-    for x=1:1:L; for y=1:1:L
+    h0 = zeros(L^2, L^2)
+    for y=1:1:L; for x=1:1:L
         uidx = get_index_from_posi(L, x, y)
-        aidx = 3*uidx-2
-        bidx = 3*uidx-1
-        cidx = 3*uidx
         #A的两个
-        h0[aidx, bidx] = HOPPING_T
-        h0[bidx, aidx] = HOPPING_T
-        h0[aidx, cidx] = HOPPING_T
-        h0[cidx, aidx] = HOPPING_T
-        #B的两个
         rtidx = get_index_from_posi(L, x, y+1)
-        artidx = 3*rtidx-2
-        h0[bidx, artidx] = HOPPING_T
-        h0[artidx, bidx] = HOPPING_T
-        h0[bidx, cidx] = HOPPING_T
-        h0[cidx, bidx] = HOPPING_T
+        h0[uidx, rtidx] = HOPPING_T
+        h0[rtidx, uidx] = HOPPING_T
         #C的两个
         ltidx = get_index_from_posi(L, x+1, y)
-        altidx = 3*ltidx-2
-        h0[cidx, altidx] = HOPPING_T
-        h0[altidx, cidx] = HOPPING_T
-        lidx = get_index_from_posi(L, x+1, y-1)
-        blidx = 3*lidx-1
-        h0[cidx, blidx] = HOPPING_T
-        h0[blidx, cidx] = HOPPING_T
+        h0[uidx, ltidx] = HOPPING_T
+        h0[ltidx, uidx] = HOPPING_T
+        #
+        lidx = get_index_from_posi(L, x-1, y+1)
+        h0[uidx, lidx] = HOPPING_T
+        h0[lidx, uidx] = HOPPING_T
     end; end
     return h0
 end
@@ -91,10 +79,7 @@ end
 """
 function trial_wavefunction(h0, Nup)
     #return uhf_trial(h0, Nup, U)
-    grs = load("etgr.jld")
-    grs = grs["etgr"]
-    h0d = 0.5*(grs[:, :, 1] + grs[:, :, 2])
-    h0d = 0.5*(h0d + h0d')
+    h0d = copy(h0)
     ##nsite = size(h0d)[1]
     ##for ni = 1:1:nsite
     ##    h0d[ni, ni] += 0.01*(rand()-0.5)
@@ -125,7 +110,7 @@ end
 增加相互作用
 """
 function add_interactions(ham::HamConfig2, L, U, Δτ)
-    for idx = 1:1:3*L^2
+    for idx = 1:1:L^2
         push!(ham.Mzints, (idx, 1, idx, 2))
         push!(ham.Axflds, AuxiliaryField2("int"*string(idx), U, Δτ))
     end
@@ -156,8 +141,8 @@ function measurements(ham, wlk, eqgr,
     engr_bin[end].V += wlk.weight * eng
     #
     #
-    szmat = zeros(Float64, 3*L^2, 3*L^2)
-    for i=1:1:3*L^2; for j=1:1:3*L^2
+    szmat = zeros(Float64, L^2, L^2)
+    for i=1:1:L^2; for j=1:1:L^2
         if i == j
             szmat[i, j] = eqgr.V[i, i, 1] + eqgr.V[i, i, 2] -
             eqgr.V[i, i, 1] * eqgr.V[i, i, 2] * 2
@@ -197,8 +182,8 @@ function main()
     cpsim = CPSim2(ham, walkers, STBLZ_INTERVAL, PCTRL_INTERVAL)
     #
     igr = initialize_simulation!(cpsim, true)
-    println("igr_up", [igr.V[idx, idx, 1] for idx=1:1:12])
-    println("igr_dn", [igr.V[idx, idx, 2] for idx=1:1:12])
+    println("igr_up", [igr.V[idx, idx, 1] for idx=1:1:8])
+    println("igr_dn", [igr.V[idx, idx, 2] for idx=1:1:8])
     println(cpsim.E_trial)
     #exit()
     relaxation_simulation(cpsim, 2000)
@@ -217,9 +202,9 @@ function main()
         push!(whgt_bin, CPMeasure{:SCALE, Float64}("weight", 0.0))
         push!(engr_bin, CPMeasure{:SCALE, Float64}("energy", 0.0))
         push!(spcr_bin, CPMeasure{:MATRIX, Matrix{Float64}}("spin corr",
-        zeros(Float64, 3*L^2, 3*L^2)))
+        zeros(Float64, L^2, L^2)))
         push!(etgr_bin, CPMeasure{:EQGR, Array{Float64, 3}}(
-            "etgr", zeros(Float64, 3*L^2, 3*L^2, 2)
+            "etgr", zeros(Float64, L^2, L^2, 2)
         ))
         for tidx = 1:1:meas_time
             premeas_simulation!(cpsim, 40)
@@ -242,28 +227,11 @@ function main()
     println("error energy = ", error_engr)
     #
     total_spcr, error_spcr = postprocess_measurements(spcr_bin, whgt_bin)
-    spcr_vec = zeros(12, 2)
-    for stx in 1:1:2; for sty in 1:1:2
-        sta = 3*get_index_from_posi(L, stx, sty)-2
-        for x=1:1:2; for y=1:1:2
-            relp = get_index_from_posi(L, x, y)
-            absp = get_index_from_posi(L, stx+x-1, sty+y-1)
-            #a->a
-            relidx = 3*relp - 2
-            spcr_vec[relidx, 1] += total_spcr[sta, 3*absp-2]
-            spcr_vec[relidx, 2] += error_spcr[sta, 3*absp-2]^2
-            #a->b
-            relidx = 3*relp - 1
-            spcr_vec[relidx, 1] += total_spcr[sta, 3*absp-1]
-            spcr_vec[relidx, 2] += error_spcr[sta, 3*absp-1]^2
-            #a->c
-            relidx = 3*relp
-            spcr_vec[relidx, 1] += total_spcr[sta, 3*absp]
-            spcr_vec[relidx, 2] += error_spcr[sta, 3*absp]^2
-        end; end
-    end; end
-    spcr_vec[:, 1] = spcr_vec[:, 1] / 4
-    spcr_vec[:, 2] = sqrt.(spcr_vec[:, 2]) / 4
+    spcr_vec = zeros(L^2, 2)
+    for stx in 1:1:L^2
+        spcr_vec[stx, 1] = total_spcr[1, stx]
+        spcr_vec[stx, 2] = error_spcr[1, stx]
+    end
     println(spcr_vec)
     #
     avg_eqgr, err_eqgr = postprocess_measurements(etgr_bin, whgt_bin)

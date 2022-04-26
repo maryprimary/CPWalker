@@ -101,3 +101,69 @@ function cal_energy(eqgr::CPMeasure{:EQGR, Array{Float64, 3}}, ham::HamConfig2)
     end
     return sysengr
 end
+
+
+"""
+获得平均值和误差
+"""
+function postprocess_measurements(meas::Vector{CPMeasure{:SCALE, T}},
+    whgt::Vector{CPMeasure{:SCALE, Float64}}) where T
+    avg = 0.
+    binnum = length(whgt)
+    for bidx = 1:1:binnum
+        avg += meas[bidx].V / whgt[bidx].V
+    end
+    avg = avg / binnum
+    err = 0.
+    for bidx = 1:1:binnum
+        dat = meas[bidx].V / whgt[bidx].V
+        err += (avg - dat)^2
+    end
+    err = sqrt(err / (binnum-1))
+    return avg, err
+end
+
+
+"""
+获得平均值和误差
+"""
+function postprocess_measurements(meas::Vector{CPMeasure{:MATRIX, T}},
+    whgt::Vector{CPMeasure{:SCALE, Float64}}) where T
+    avg = zeros(size(meas[1].V))
+    binnum = length(whgt)
+
+    for bidx = 1:1:binnum
+        avg .+= meas[bidx].V / whgt[bidx].V
+    end
+    avg = avg / binnum
+    err = zeros(size(meas[1].V))
+    for bidx = 1:1:binnum
+        dat = meas[bidx].V / whgt[bidx].V
+        err .+= (avg .- dat).^2
+    end
+    err = sqrt.(err / (binnum-1))
+    return avg, err
+end
+
+
+"""
+获得平均值和误差
+"""
+function postprocess_measurements(meas::Vector{CPMeasure{:EQGR, Array{Float64, 3}}},
+    whgt::Vector{CPMeasure{:SCALE, Float64}})
+    avg = zeros(size(meas[1].V))
+    binnum = length(whgt)
+
+    for bidx = 1:1:binnum
+        avg .+= meas[bidx].V / whgt[bidx].V
+    end
+    avg = avg / binnum
+    err = zeros(size(meas[1].V))
+    for bidx = 1:1:binnum
+        dat = meas[bidx].V / whgt[bidx].V
+        err .+= (avg .- dat).^2
+    end
+    err = sqrt.(err / (binnum-1))
+    return avg, err
+end
+

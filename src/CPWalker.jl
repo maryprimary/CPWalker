@@ -12,6 +12,7 @@ export step_dtau!, update_overlap!, stablize!
 export step_slice!
 export popctrl!, weight_rescale!
 export CPMeasure, calculate_eqgr!
+export postprocess_measurements
 export CPSim2, initialize_simulation!, relaxation_simulation
 export E_trial_simulation!, initial_meaurements!
 export premeas_simulation!, postmeas_simulation
