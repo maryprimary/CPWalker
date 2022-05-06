@@ -142,6 +142,8 @@ end
 function initial_meaurements!(cpsim::CPSim2, mcsteps::Int64)
     for wlk in cpsim.walkers
         wlk.hshist = zeros(Int64, length(cpsim.hamiltonian.Mzints), mcsteps)
+        wlk.Φcache = (Slater{Float64}(wlk.Φ[1].name*"_back_1", copy(wlk.Φ[1].V)),
+        Slater{Float64}(wlk.Φ[2].name*"_back_2", copy(wlk.Φ[2].V)))
         lattsize = size(cpsim.hamiltonian.H0.V)[1]
         push!(cpsim.eqgrs, CPMeasure{:EQGR, Array{Float64, 3}}("eqgreen", zeros(lattsize, lattsize, 2)))
     end
@@ -153,6 +155,12 @@ end
 measure前的准备
 """
 function premeas_simulation!(cpsim::CPSim2, mcsteps::Int64)
+    #存储用来反传的slater
+    for wlk in cpsim.walkers
+        wlk.hshist .= 0
+        wlk.Φcache[1].V .= wlk.Φ[1].V
+        wlk.Φcache[2].V .= wlk.Φ[2].V
+    end
     #不做最后一次
     pctime = Int64(ceil(mcsteps/cpsim.pctrl_interval))
     for pidx = 1:1:pctime-1
@@ -193,8 +201,10 @@ function premeas_simulation!(cpsim::CPSim2, mcsteps::Int64)
     weight_rescale!(cpsim.walkers)
     #更新格林函数
     for widx = 1:1:length(cpsim.walkers)
-        eqgr = get_eqgr_without_back(cpsim.hamiltonian, cpsim.walkers[widx])
-        cpsim.eqgrs[widx].V .= eqgr.V
+        #eqgr = get_eqgr_without_back(cpsim.hamiltonian, cpsim.walkers[widx])
+        #cpsim.eqgrs[widx].V .= eqgr.V
+        calculate_eqgr!(cpsim.eqgrs[widx], cpsim.hamiltonian,
+        cpsim.walkers[widx], cpsim.stblz_interval)
     end
 end
 

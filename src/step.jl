@@ -282,6 +282,9 @@ function step_int_diff_fl!(wlk::HSWalker2, ham::HamConfig2,
     #println("aaaaaaaaaaa")
     #println(wlk.ovlpinv[fl1].V)
     #println(oinovlp)
+    if !isfinite(wlk.weight)
+        wlk.weight = 0
+    end
     if !ismissing(wlk.hshist)
         hssize = size(wlk.hshist)
         wlk.hshist[opidx, mod(tauidx, hssize[2])+1] = ichose
@@ -369,6 +372,9 @@ function step_int_same_fl!(wlk::HSWalker2, ham::HamConfig2,
     rat = 1.0 + axfld.ΔV[ichose, fl2]*gf2[ichose]
     wlk.ovlpinv[fl2].V .= newinvos[ichose] - 
     (axfld.ΔV[ichose, fl2]/rat)*(gl2[ichose]*gr2[ichose])
+    if !isfinite(wlk.weight)
+        wlk.weight = 0
+    end
     #
     #println("aaaaaaaaaaa")
     #println(wlk.ovlpinv[fl1].V)

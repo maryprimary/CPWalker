@@ -18,6 +18,8 @@ mutable struct HSWalker2
     weight :: Float64
     ovlpinv :: Union{Missing, Tuple{Slater{Float64}, Slater{Float64}}}
     hshist :: Union{Missing, Matrix{Int64}}#第一个编号是相互作用，第二个是时间
+    Φcache :: Union{Missing, Tuple{Slater{Float64}, Slater{Float64}}}
+    #用来存储反传时的slater
 end
 
 
@@ -70,6 +72,13 @@ function update_overlap!(wlk::HSWalker2, ham::HamConfig2, weight_update::Bool)
     ovlp_inv1 = ham.ΦtT[1] * wlk.Φ[1]
     #ovlp
     detovlp1 = det(ovlp_inv1)
+    #println(ham.ΦtT[1].V[1, :])
+    #println(wlk.Φ[1].V[:, 1])
+    #println(ham.ΦtT[1].V[2, :])
+    #println(wlk.Φ[1].V[:, 2])
+    #println(dot(wlk.Φ[1].V[:, 1], wlk.Φ[1].V[:, 2]))
+    #println(ovlp_inv1)
+    #throw(error("a"))
     if weight_update && detovlp1 < 1e-5
         wlk.weight = 0.
         wlk.overlap = 0.
@@ -140,7 +149,7 @@ end
 """
 给walker重新正交归一化
 """
-function stablize!(wlk::HSWalker2, ham::HamConfig2)
+function stablize!(wlk::HSWalker2, ham::HamConfig2; checkovlp=true)
     if wlk.weight < 1e-8
         return
     end
@@ -178,7 +187,7 @@ function stablize!(wlk::HSWalker2, ham::HamConfig2)
     testoverlap = testoverlap * rescale
     #stablize中更新overlap不更新weight
     update_overlap!(wlk, ham, false)
-    if abs(testoverlap - wlk.overlap) > 1e-6
+    if checkovlp && abs(testoverlap - wlk.overlap) > 1e-6
         println(testoverlap, " ", wlk.overlap)
         println(wlk)
         println(tempwlkphi1)
@@ -202,7 +211,7 @@ function HSWalker2(
     )
     sla1 = Slater{Float64}(name*"_1", phi1)
     sla2 = Slater{Float64}(name*"_2", phi2)
-    wlk = HSWalker2((sla1, sla2), 1.0, wgt, missing, missing)
+    wlk = HSWalker2((sla1, sla2), 1.0, wgt, missing, missing, missing)
     update_overlap!(wlk, ham, true)
     return wlk
 end
@@ -214,7 +223,7 @@ end
 function clone(wlk::HSWalker2, newname::String)
     sla1 = Slater{Float64}(newname*"_1", copy(wlk.Φ[1].V))
     sla2 = Slater{Float64}(newname*"_2", copy(wlk.Φ[2].V))
-    wlk2 = HSWalker2((sla1, sla2), 1.0, wlk.weight, missing, missing)
+    wlk2 = HSWalker2((sla1, sla2), 1.0, wlk.weight, missing, missing, missing)
     wlk2.overlap = wlk2.weight
     wlk2.ovlpinv = (
         Slater{Float64}("copy-"*wlk.ovlpinv[1].name, copy(wlk.ovlpinv[1].V)),
@@ -238,5 +247,9 @@ function copy_to(src::HSWalker2, dst::HSWalker2)
     end
     if !ismissing(src.hshist)
         dst.hshist .= src.hshist
+    end
+    if !ismissing(src.Φcache)
+        dst.Φcache[1].V .= src.Φcache[1].V
+        dst.Φcache[2].V .= src.Φcache[2].V
     end
 end

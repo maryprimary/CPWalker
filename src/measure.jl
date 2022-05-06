@@ -13,20 +13,48 @@ end
 """
 更新格林函数
 """
-function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}}, ham::HamConfig2, wlk::HSWalker2)
+function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
+    ham::HamConfig2, wlk::HSWalker2, stbint::Int64)
+    if abs(wlk.weight) < 1e-5
+        return
+    end
     #构造反传的Slater
     sla1 = Slater("backwlk"*wlk.Φ[1].name, copy(ham.Φt[1].V))
     sla2 = Slater("backwlk"*wlk.Φ[2].name, copy(ham.Φt[2].V))
     backwlk = HSWalker2(
-        (sla1, sla2), 1.0, 1.0, missing, missing
+        (sla1, sla2), 1.0, 1.0, missing, missing, missing
     )
     #对backwlk进行反向传播
     hssize = size(wlk.hshist)
-    for tauidx in 1:1:hssize[2]
-        multiply_left!(ham.exp_dτH0, backwlk.Φ[1])
-        multiply_left!(ham.exp_dτH0, backwlk.Φ[2])
-        for opidx in 1:1:length(ham.Mzints)
-            ichose = wlk.hshist[opidx, tauidx]
+    slnum = Int64(hssize[2] // stbint)
+    tidx = 0
+    for _ = 1:1:slnum
+        #每次先做一个
+        multiply_left!(ham.exp_halfdτH0, backwlk.Φ[1])
+        multiply_left!(ham.exp_halfdτH0, backwlk.Φ[2])
+        for tauidx = 1:1:(stbint-1)
+            tidx += 1
+            tidxinv = hssize[2] - tidx + 1
+            for opidx in 1:1:length(ham.Mzints)
+                ichose = wlk.hshist[opidx, tidxinv]
+                #if ichose == 0
+                #    println(wlk)
+                #end
+                axfld = ham.Axflds[opidx]
+                st1 = ham.Mzints[opidx][1]
+                fl1 = ham.Mzints[opidx][2]
+                backwlk.Φ[fl1].V[st1, :] .= (axfld.ΔV[ichose, fl1]+1)*backwlk.Φ[fl1].V[st1, :]
+                st2 = ham.Mzints[opidx][3]
+                fl2 = ham.Mzints[opidx][4]
+                backwlk.Φ[fl2].V[st2, :] .= (axfld.ΔV[ichose, fl2]+1)*backwlk.Φ[fl2].V[st2, :]
+            end
+            multiply_left!(ham.exp_dτH0, backwlk.Φ[1])
+            multiply_left!(ham.exp_dτH0, backwlk.Φ[2])
+        end
+        tidx += 1
+        tidxinv = hssize[2] - tidx + 1
+        for opidx in 1:1:length(ham.Mzints) 
+            ichose = wlk.hshist[opidx, tidxinv]
             axfld = ham.Axflds[opidx]
             st1 = ham.Mzints[opidx][1]
             fl1 = ham.Mzints[opidx][2]
@@ -35,20 +63,25 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}}, ham::HamConf
             fl2 = ham.Mzints[opidx][4]
             backwlk.Φ[fl2].V[st2, :] .= (axfld.ΔV[ichose, fl2]+1)*backwlk.Φ[fl2].V[st2, :]
         end
+        multiply_left!(ham.exp_halfdτH0, backwlk.Φ[1])
+        multiply_left!(ham.exp_halfdτH0, backwlk.Φ[2])
+        stablize!(backwlk, ham; checkovlp=false)
     end
-    #stablize!(wlk, ham)
     #
-    #println(backwlk)
     #计算walker和试探波函数（backwalker）的inv（ovlp）
     backv1 = adjoint(backwlk.Φ[1].V)
-    invovlp1 = inv(backv1 * wlk.Φ[1].V)
+    #invovlp1 = inv(backv1 * wlk.Φ[1].V)
+    invovlp1 = inv(backv1 * wlk.Φcache[1].V)#wlk.Φ[1].V)
     #println(size(invovlp1))
     #计算格林函数
-    meas.V[:, :, 1] .= wlk.Φ[1].V * invovlp1 * backv1
+    #meas.V[:, :, 1] .= wlk.Φ[1].V * invovlp1 * backv1
+    meas.V[:, :, 1] .= wlk.Φcache[1].V * invovlp1 * backv1
     #println(size(gr1))
     backv2 = adjoint(backwlk.Φ[2].V)
-    invovlp2 = inv(backv2 * wlk.Φ[2].V)
-    meas.V[:, :, 2] .= wlk.Φ[2].V * invovlp2 * backv2
+    #invovlp2 = inv(backv2 * wlk.Φ[2].V)
+    invovlp2 = inv(backv2 * wlk.Φcache[2].V)#wlk.Φ[2].V)
+    #meas.V[:, :, 2] .= wlk.Φ[2].V * invovlp2 * backv2
+    meas.V[:, :, 2] .= wlk.Φcache[2].V * invovlp2 * backv2
 end
 
 

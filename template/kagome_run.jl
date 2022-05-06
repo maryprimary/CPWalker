@@ -91,10 +91,10 @@ end
 """
 function trial_wavefunction(h0, Nup)
     #return uhf_trial(h0, Nup, U)
-    grs = load("etgr.jld")
-    grs = grs["etgr"]
-    h0d = 0.5*(grs[:, :, 1] + grs[:, :, 2])
-    h0d = 0.5*(h0d + h0d')
+    #grs = load("etgr.jld")
+    #grs = grs["etgr"]
+    #h0d = 0.5*(grs[:, :, 1] + grs[:, :, 2])
+    #h0d = 0.5*(h0d + h0d')
     ##nsite = size(h0d)[1]
     ##for ni = 1:1:nsite
     ##    h0d[ni, ni] += 0.01*(rand()-0.5)
@@ -102,6 +102,7 @@ function trial_wavefunction(h0, Nup)
     ##println("close shell ")
     ##println(eigvals(h0d))
     ##println("------")
+    h0d = h0
     eigvs = eigvecs(h0d)
     phi = eigvs[:, 1:Nup]
     return copy(phi), copy(phi)
