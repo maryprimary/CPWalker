@@ -75,5 +75,3 @@ function HamConfig2(h0::Matrix{Float64}, dtau::Float64,
         exphalfh0op, exph0op
     )
 end
-
-

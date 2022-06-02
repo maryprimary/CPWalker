@@ -14,7 +14,7 @@ end
 """
 将权重重新整理
 """
-function weight_rescale!(wlks::Vector{HSWalker2})
+function weight_rescale!(wlks::Vector{T}) where { T <: Union{HSWalker2, HSWalker3} }
     wgtsum = sum([wlk.weight for wlk in wlks])
     rate = length(wlks) / wgtsum
     for wlk in wlks
@@ -69,7 +69,7 @@ end
 """
 进行weight的控制
 """
-function popctrl!(wlks::Vector{HSWalker2})
+function popctrl!(wlks::Vector{T}) where { T <: Union{HSWalker2, HSWalker3} }
     #return
     #部分求和
     wgttot = sum([wlk.weight for wlk in wlks])
@@ -94,7 +94,7 @@ function popctrl!(wlks::Vector{HSWalker2})
     end
     #对所有小于avg的，按照概率从之前大于avg的复制
     for idx = 1:1:length(wlks)
-        if wlks[idx].weight >= wgtavg
+        if wlks[idx].weight >= 1e-5#wgtavg
             continue
         end
         randv = rand() * probsum[end]
