@@ -84,7 +84,7 @@ end
 投影一段时间
 """
 function relaxation_simulation(cpsim::CPSim3, bctime::Int64)
-    #需要进行popular control的次数
+    #需要进行beta cut的次数
     for pidx = 1:1:bctime
         sttime = Int64(cpsim.beta_cut_intrv//cpsim.stblz_interval)
         taumat = Matrix{Int64}(undef, sttime, cpsim.stblz_interval)
@@ -94,26 +94,25 @@ function relaxation_simulation(cpsim::CPSim3, bctime::Int64)
             rstart += 1
         end; end
         #println(sttime, " ", taumat)
-        @Threads.threads for wlk in cpsim.walkers
-            for sidx = 1:1:(sttime-1)
+        for sidx = 1:1:sttime
+            for wlk in cpsim.walkers
                 step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
                 E_trial=cpsim.E_trial)
-                decorate_stablize!(wlk, cpsim.hamiltonian)
+                if sidx != sttime
+                    decorate_stablize!(wlk, cpsim.hamiltonian)
+                else
+                    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
+                    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
+                    #println(cpsim.walkers[1].weight)
+                    #包含在stablize过程中，不需要更新weight
+                    update_overlap!(wlk, cpsim.hamiltonian, false)
+                    #println(cpsim.walkers[1].weight)
+                    stablize!(wlk, cpsim.hamiltonian)
+                end
             end
-            sidx = sttime
-            step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
-            E_trial=cpsim.E_trial)
-            multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
-            multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
-            #println(cpsim.walkers[1].weight)
-            #包含在stablize过程中，不需要更新weight
-            update_overlap!(wlk, cpsim.hamiltonian, false)
-            #println(cpsim.walkers[1].weight)
-            stablize!(wlk, cpsim.hamiltonian)
+            weight_rescale!(cpsim.walkers)
+            popctrl!(cpsim.walkers)
         end
-        #println([wlk.weight for wlk in cpsim.walkers[1:20]])
-        weight_rescale!(cpsim.walkers)
-        popctrl!(cpsim.walkers)
     end
 end
 
@@ -129,6 +128,7 @@ function E_trial_simulation!(cpsim::CPSim3)
     #popctrl!(cpsim.walkers)
     #println(sum([wlk.weight for wlk in cpsim.walkers]))
     for epidx = 1:1:epochs
+        weight_rescale!(cpsim.walkers)
         #for sidx = 1:1:steps
         #    @Threads.threads for wlk in cpsim.walkers
         #        step_dtau!(wlk, cpsim.hamiltonian, sidx; E_trial=cpsim.E_trial)
@@ -286,26 +286,29 @@ function premeas_simulation!(cpsim::CPSim3)
         rstart += 1
     end; end
     #println(sttime, " ", taumat)
-    @Threads.threads for wlk in cpsim.walkers
-        #除了beta cut的最后一次
-        #都做decorate stablize
-        for sidx = 1:1:(sttime-1)
+    for sidx = 1:1:sttime
+        for wlk in cpsim.walkers
             step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
             E_trial=cpsim.E_trial)
-            decorate_stablize!(wlk, cpsim.hamiltonian)
+            #除了beta cut的最后一次
+            #都做decorate stablize
+            if sidx != sttime
+                decorate_stablize!(wlk, cpsim.hamiltonian)
+            else
+                multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
+                multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
+                #println(cpsim.walkers[1].weight)
+                #包含在stablize过程中，不需要更新weight
+                update_overlap!(wlk, cpsim.hamiltonian, false)
+                #println(cpsim.walkers[1].weight)
+                stablize!(wlk, cpsim.hamiltonian)
+            end
         end
-        sidx = sttime
-        step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
-        E_trial=cpsim.E_trial)
-        multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
-        multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
-        #println(cpsim.walkers[1].weight)
-        #包含在stablize过程中，不需要更新weight
-        update_overlap!(wlk, cpsim.hamiltonian, false)
-        #println(cpsim.walkers[1].weight)
-        stablize!(wlk, cpsim.hamiltonian)
+        weight_rescale!(cpsim.walkers)
+        if sidx != sttime
+            popctrl!(cpsim.walkers)
+        end
     end
-    weight_rescale!(cpsim.walkers)
     #更新格林函数
     for widx = 1:1:length(cpsim.walkers)
         #eqgr = get_eqgr_without_back(cpsim.hamiltonian, cpsim.walkers[widx])
@@ -322,6 +325,7 @@ end
 """
 function postmeas_simulation(cpsim::CPSim3)
     popctrl!(cpsim.walkers)
+    weight_rescale!(cpsim.walkers)
 end
 
 

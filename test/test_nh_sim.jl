@@ -58,7 +58,7 @@ function run(profilename, previousname)
     nh = 0.1
     U = 4.0
     NWLK = 500
-    CBT = 10.0
+    CBT = 20.0
     #
     h0 = construct_chain_lattice(L, 1, nh)
     println(h0)
@@ -113,10 +113,22 @@ function run(profilename, previousname)
             for widx = 1:1:NWLK
                 wgt_bin[end] = wgt_bin[end] + cpsim.walkers[widx].weight
                 grn_bin[end] = grn_bin[end] + cpsim.eqgrs[widx].V * cpsim.walkers[widx].weight
+                duob = zeros(L)
+                for duoidx=1:1:L
+                    duob[duoidx] = cpsim.eqgrs[widx].V[duoidx, duoidx, 1] * cpsim.eqgrs[widx].V[duoidx, duoidx, 2]
+                end
+                duo_bin[end] = duo_bin[end] + duob * cpsim.walkers[widx].weight
             end
             postmeas_simulation(cpsim)
         end
         grn_bin[end] = grn_bin[end] / wgt_bin[end]
+        duo_bin[end] = duo_bin[end] / wgt_bin[end]
+        println(bidx)
+    end
+    #
+    println("wgt")
+    for idx = 1:1:binnum
+        println(wgt_bin[idx])
     end
     #
     mean_grn = zeros(L, L, 2)
@@ -135,6 +147,27 @@ function run(profilename, previousname)
         println(0.5*(mean_grn[idx, idx, 1]+mean_grn[idx, idx, 2]),
         " ", 0.5*(errn_grn[idx, idx, 1] + errn_grn[idx, idx, 2]))
     end
+    #
+    for bidx = 1:1:binnum
+        println(bidx, " ", grn_bin[bidx][L, L, 1], " ", grn_bin[bidx][L, L, 2])
+    end
+    #
+    mean_duo = zeros(L)
+    for bidx = 1:1:binnum
+        mean_duo += duo_bin[bidx]
+    end
+    mean_duo /= binnum
+    errn_duo = zeros(L)
+    for bidx = 1:1:binnum
+        errn_duo += (duo_bin[bidx] - mean_duo).^2
+    end
+    errn_duo /= (binnum-1)
+    errn_duo = sqrt.(errn_duo)
+    println("duo")
+    for idx=1:1:L
+        println(mean_duo[idx], " ", errn_duo[idx])
+    end
+    #
     #保存参数
     save_density_profile(profilename, mean_grn)
 end

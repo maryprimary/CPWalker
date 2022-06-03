@@ -123,18 +123,18 @@ function density_recur(h0, cutoffbeta, np, mfu, denprf)
         end
         ebhlmat2, Smat2, phiup2, eqgr2 = get_ham_info(heff, np, cutoffbeta)
         denarr2 = [eqgr2[idx, idx] for idx = 1:1:ssize]
-        for iidx = 1:1:100
-            heff = copy(h0)
-            for sidx = 1:1:ssize
-                heff[sidx, sidx] += ueff * denarr2[sidx]
-            end
-            ebhlmat2, Smat2, phiup2, eqgr2 = get_ham_info(heff, np, cutoffbeta)
-            denarr3 = [eqgr2[idx, idx] for idx = 1:1:ssize]
-            if all(isapprox.(denarr3, denarr2, atol=1e-5))
-                break
-            end
-            denarr2 = 0.5*(denarr3+denarr2)
-        end
+        #for iidx = 1:1:100
+        #    heff = copy(h0)
+        #    for sidx = 1:1:ssize
+        #        heff[sidx, sidx] += ueff * denarr2[sidx]
+        #    end
+        #    ebhlmat2, Smat2, phiup2, eqgr2 = get_ham_info(heff, np, cutoffbeta)
+        #    denarr3 = [eqgr2[idx, idx] for idx = 1:1:ssize]
+        #    if all(isapprox.(denarr3, denarr2, atol=1e-5))
+        #        break
+        #    end
+        #    denarr2 = 0.5*(denarr3+denarr2)
+        #end
         dis2 = sum((denarr2 - denarr).^2)
         dis2 = sqrt(dis2)
         if dis2 < mindis

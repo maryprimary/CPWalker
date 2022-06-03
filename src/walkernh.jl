@@ -203,6 +203,8 @@ function stablize!(wlk::HSWalker3, ham::HamConfig3; checkovlp=true)
     end
     testoverlap = testoverlap * rescale
     #stablize中更新overlap不更新weight
+    #因为投影的时候walker变大了，但是weight因为乘了exp(E_trial)所以没变大
+    #这里不应该更新权重
     update_overlap!(wlk, ham, false)
     if checkovlp && abs(testoverlap - wlk.overlap) > 1e-6
         println(testoverlap, " ", wlk.overlap)

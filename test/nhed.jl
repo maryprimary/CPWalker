@@ -251,7 +251,7 @@ L = 8
 np= 3
 
 println(count_state_num(np, L))
-h0 = get_ham(np, L, construct_chain_lattice(L, 0.1), 3.)
+h0 = get_ham(np, L, construct_chain_lattice(L, 0.1), 4.)
 
 #println(real(h0))
 
@@ -263,7 +263,7 @@ Smat = eigh0.vectors
 
 #println("smat ", Smat)
 
-cbt = 10
+cbt = 5
 
 
 

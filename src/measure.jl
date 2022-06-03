@@ -108,15 +108,16 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
     slnum = Int64(hssize[2] // stbint)
     tidx = 0
     #
+    #println(slnum)
     for slidx = 1:1:slnum
         #每次先做一个
         multiply_left!(ham.exp_halfdτHnhd, backwlk.Φ[1])
         multiply_left!(ham.exp_halfdτHnhd, backwlk.Φ[2])
         for tauidx = 1:1:(stbint-1)
             tidx += 1
-            tidxinv = hssize[2] - tidx + 1
+            #tidxinv = hssize[2] - tidx + 1
             for opidx in 1:1:length(ham.Mzints)
-                ichose = wlk.hshist[opidx, tidxinv]
+                ichose = wlk.hshist[opidx, tidx]#tidxinv]
                 axfld = ham.Axflds[opidx]
                 st1 = ham.Mzints[opidx][1]
                 fl1 = ham.Mzints[opidx][2]
@@ -129,9 +130,9 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
             multiply_left!(ham.exp_dτHnhd, backwlk.Φ[2])
         end
         tidx += 1
-        tidxinv = hssize[2] - tidx + 1
+        #tidxinv = hssize[2] - tidx + 1
         for opidx in 1:1:length(ham.Mzints) 
-            ichose = wlk.hshist[opidx, tidxinv]
+            ichose = wlk.hshist[opidx, tidx]#tidxinv]
             axfld = ham.Axflds[opidx]
             st1 = ham.Mzints[opidx][1]
             fl1 = ham.Mzints[opidx][2]
@@ -152,6 +153,62 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
             decorate_stablize!(backwlk, ham; checkovlp=false)
         end
     end
+    #第二种反传
+    #multiply_left!(ham.SSd.V, backwlk.Φ[1])
+    #multiply_left!(ham.SSd.V, backwlk.Φ[2])
+    ##包含在stablize过程中，不需要更新weight
+    #update_overlap!(backwlk, ham, false)
+    #for slidx = 1:1:slnum
+    #    #每次先做一个
+    #    multiply_left!(adjoint(ham.exp_halfdτHnhd), backwlk.Φ[1])
+    #    multiply_left!(adjoint(ham.exp_halfdτHnhd), backwlk.Φ[2])
+    #    for tauidx = 1:1:(stbint-1)
+    #        tidx += 1
+    #        tidxinv = hssize[2] - tidx + 1
+    #        for opidx in 1:1:length(ham.Mzints)
+    #            ichose = wlk.hshist[opidx, tidxinv]
+    #            axfld = ham.Axflds[opidx]
+    #            st1 = ham.Mzints[opidx][1]
+    #            fl1 = ham.Mzints[opidx][2]
+    #            backwlk.Φ[fl1].V[st1, :] .= (axfld.ΔV[ichose, fl1]+1)*backwlk.Φ[fl1].V[st1, :]
+    #            st2 = ham.Mzints[opidx][3]
+    #            fl2 = ham.Mzints[opidx][4]
+    #            backwlk.Φ[fl2].V[st2, :] .= (axfld.ΔV[ichose, fl2]+1)*backwlk.Φ[fl2].V[st2, :]
+    #        end
+    #        multiply_left!(adjoint(ham.exp_dτHnhd), backwlk.Φ[1])
+    #        multiply_left!(adjoint(ham.exp_dτHnhd), backwlk.Φ[2])
+    #    end
+    #    tidx += 1
+    #    tidxinv = hssize[2] - tidx + 1
+    #    for opidx in 1:1:length(ham.Mzints) 
+    #        ichose = wlk.hshist[opidx, tidxinv]
+    #        axfld = ham.Axflds[opidx]
+    #        st1 = ham.Mzints[opidx][1]
+    #        fl1 = ham.Mzints[opidx][2]
+    #        backwlk.Φ[fl1].V[st1, :] .= (axfld.ΔV[ichose, fl1]+1)*backwlk.Φ[fl1].V[st1, :]
+    #        st2 = ham.Mzints[opidx][3]
+    #        fl2 = ham.Mzints[opidx][4]
+    #        backwlk.Φ[fl2].V[st2, :] .= (axfld.ΔV[ichose, fl2]+1)*backwlk.Φ[fl2].V[st2, :]
+    #    end
+    #    multiply_left!(adjoint(ham.exp_halfdτHnhd), backwlk.Φ[1])
+    #    multiply_left!(adjoint(ham.exp_halfdτHnhd), backwlk.Φ[2])
+    #    if slidx == slnum
+    #        stablize!(backwlk, ham; checkovlp=false)
+    #    else
+    #        multiply_left!(ham.iSSd.V, backwlk.Φ[1])
+    #        multiply_left!(ham.iSSd.V, backwlk.Φ[2])
+    #        update_overlap!(backwlk, ham, false)
+    #        stablize!(backwlk, ham; checkovlp=false)
+    #        multiply_left!(ham.SSd.V, backwlk.Φ[1])
+    #        multiply_left!(ham.SSd.V, backwlk.Φ[2])
+    #        update_overlap!(backwlk, ham, false)
+    #    end
+    #end
+    #
+    #if backwlk.weight < 1e-5
+    #    wlk.weight = 0
+    #    return
+    #end
     #计算walker和试探波函数（backwalker）的inv（ovlp）
     #println(backwlk.Φ[1].V, wlk.Φ[1].V)
     backv1 = adjoint(backwlk.Φ[1].V)

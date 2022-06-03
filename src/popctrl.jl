@@ -92,6 +92,7 @@ function popctrl!(wlks::Vector{T}) where { T <: Union{HSWalker2, HSWalker3} }
     for idx = 2:1:length(probpair)
         probsum[idx] = probsum[idx-1] + probpair[idx][1]
     end
+    #println([wlk.weight for wlk in wlks])
     #对所有小于avg的，按照概率从之前大于avg的复制
     for idx = 1:1:length(wlks)
         if wlks[idx].weight >= 1e-5#wgtavg
