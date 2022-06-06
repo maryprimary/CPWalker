@@ -233,6 +233,37 @@ function green_value(npart, nsite, gndvec, st1, st2)
 end
 
 
+"""
+计算密度密度关联
+"""
+function dencorr_value(npart, nsite, gndvec, st1, sp1, st2, sp2)
+    staarr = get_state_array(npart, nsite)
+    stadic = Dict()
+    for sta in staarr
+        stadic[sta] = length(stadic) + 1
+    end
+    corr = 0.
+    for idx = 1:1:length(staarr)
+        sta = staarr[idx]
+        upsta, dnsta = sta[1:nsite], sta[nsite+1:end]
+        if sp1 == :UP
+            sta1 = upsta
+        else
+            sta1 = dnsta
+        end
+        if sp2 == :UP
+            sta2 = upsta
+        else
+            sta2 = dnsta
+        end
+        #
+        if sta1[st1] == '1' && sta2[st2] == '1'
+            corr += adjoint(gndvec[idx]) * gndvec[idx]
+        end
+    end
+    return corr
+end
+
 
 
 """
@@ -249,9 +280,11 @@ end
 
 L = 8
 np= 3
+nh= 0.8
+U = 2.
 
 println(count_state_num(np, L))
-h0 = get_ham(np, L, construct_chain_lattice(L, 0.1), 4.)
+h0 = get_ham(np, L, construct_chain_lattice(L, nh), U)
 
 #println(real(h0))
 
@@ -263,7 +296,7 @@ Smat = eigh0.vectors
 
 #println("smat ", Smat)
 
-cbt = 5
+cbt = 20
 
 
 
@@ -282,6 +315,27 @@ eig = eigen(-ebhlmat)
 for idx=1:1:L
     println(green_value(np, L, eig.vectors[:, 1], idx, idx))
 end
+
+
+for idx=1:1:L
+    println(dencorr_value(np, L, eig.vectors[:, 1], idx, :UP, idx, :DN))
+end
+
+
+eng = 0.
+for bnd in construct_chain_lattice(L, nh)
+    global eng
+    eng += 2 * green_value(np, L, eig.vectors[:, 1], bnd[1], bnd[2]) * bnd[3]
+end
+
+println("hopping eng ", eng)
+
+for idx = 1:1:L
+    global eng
+    eng += U * dencorr_value(np, L, eig.vectors[:, 1], idx, :UP, idx, :DN)
+end
+
+println("eng ", eng)
 
 
 println("====")

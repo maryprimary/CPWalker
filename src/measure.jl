@@ -115,9 +115,9 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
         multiply_left!(ham.exp_halfdτHnhd, backwlk.Φ[2])
         for tauidx = 1:1:(stbint-1)
             tidx += 1
-            #tidxinv = hssize[2] - tidx + 1
+            tidxinv = hssize[2] - tidx + 1
             for opidx in 1:1:length(ham.Mzints)
-                ichose = wlk.hshist[opidx, tidx]#tidxinv]
+                ichose = wlk.hshist[opidx, tidxinv]
                 axfld = ham.Axflds[opidx]
                 st1 = ham.Mzints[opidx][1]
                 fl1 = ham.Mzints[opidx][2]
@@ -130,9 +130,9 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
             multiply_left!(ham.exp_dτHnhd, backwlk.Φ[2])
         end
         tidx += 1
-        #tidxinv = hssize[2] - tidx + 1
+        tidxinv = hssize[2] - tidx + 1
         for opidx in 1:1:length(ham.Mzints) 
-            ichose = wlk.hshist[opidx, tidx]#tidxinv]
+            ichose = wlk.hshist[opidx, tidxinv]
             axfld = ham.Axflds[opidx]
             st1 = ham.Mzints[opidx][1]
             fl1 = ham.Mzints[opidx][2]
@@ -192,17 +192,17 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
     #    end
     #    multiply_left!(adjoint(ham.exp_halfdτHnhd), backwlk.Φ[1])
     #    multiply_left!(adjoint(ham.exp_halfdτHnhd), backwlk.Φ[2])
-    #    if slidx == slnum
+    #    #if slidx == 1#slnum
     #        stablize!(backwlk, ham; checkovlp=false)
-    #    else
-    #        multiply_left!(ham.iSSd.V, backwlk.Φ[1])
-    #        multiply_left!(ham.iSSd.V, backwlk.Φ[2])
-    #        update_overlap!(backwlk, ham, false)
-    #        stablize!(backwlk, ham; checkovlp=false)
-    #        multiply_left!(ham.SSd.V, backwlk.Φ[1])
-    #        multiply_left!(ham.SSd.V, backwlk.Φ[2])
-    #        update_overlap!(backwlk, ham, false)
-    #    end
+    #    #else
+    #    #    multiply_left!(ham.iSSd.V, backwlk.Φ[1])
+    #    #    multiply_left!(ham.iSSd.V, backwlk.Φ[2])
+    #    #    update_overlap!(backwlk, ham, false)
+    #    #    stablize!(backwlk, ham; checkovlp=false)
+    #    #    multiply_left!(ham.SSd.V, backwlk.Φ[1])
+    #    #    multiply_left!(ham.SSd.V, backwlk.Φ[2])
+    #    #    update_overlap!(backwlk, ham, false)
+    #    #end
     #end
     #
     #if backwlk.weight < 1e-5
@@ -254,6 +254,10 @@ function get_eqgr_without_back(ham::HamConfig3, wlk::HSWalker3)
     adjv1 = adjoint(ham.Φt[1].V)
     invovlp1 = inv(adjv1 * wlk.Φ[1].V)
     eqgr[:, :, 1] .= wlk.Φ[1].V * invovlp1 * adjv1
+    #println("eqgr", eqgr[:, :, 1])
+    #println(adjoint(ham.Φt[1].V) * ham.Φt[1].V)
+    #println(adjoint(wlk.Φ[1].V) * wlk.Φ[1].V)
+    #println("============")
     adjv2 = adjoint(ham.Φt[2].V)
     invovlp2 = inv(adjv2 * wlk.Φ[2].V)
     eqgr[:, :, 2] .= wlk.Φ[2].V * invovlp2 * adjv2
@@ -275,6 +279,38 @@ function cal_energy(eqgr::CPMeasure{:EQGR, Array{Float64, 3}}, ham::HamConfig2)
         for st2 = 1:1:syssize[2]
             sysengr += ham.H0.V[st1, st2] * eqgr.V[st1, st2, 1]
             sysengr += ham.H0.V[st1, st2] * eqgr.V[st1, st2, 2]
+        end
+    end
+    #println(sysengr)
+    #interaction
+    for opidx = 1:1:length(ham.Mzints)
+        mint = ham.Mzints[opidx]
+        axfld = ham.Axflds[opidx]
+        st1, fl1 = mint[1], mint[2]
+        st2, fl2 = mint[3], mint[4]
+        u = (axfld.ΔV[1, 1] + 1)*(axfld.ΔV[1, 2] + 1)
+        u = -log(u) / ham.dτ
+        sysengr += u*eqgr.V[st1, st1, fl1]*eqgr.V[st2, st2, fl2]
+        #sysengr -= (0.5*u*eqgr.V[st1, st1, fl1] + 0.5*u*eqgr.V[st2, st2, fl2])
+        if fl1 == fl2
+            sysengr += -u*eqgr.V[st1, st2, fl1]*eqgr.V[st2, st1, fl1]
+        end
+    end
+    return sysengr
+end
+
+
+"""
+计算能量
+"""
+function cal_energy(eqgr::CPMeasure{:EQGR, Array{Float64, 3}}, ham::HamConfig3)
+    syssize = size(ham.Hnh.V)
+    sysengr = 0.
+    #hopping
+    for st1 = 1:1:syssize[1]
+        for st2 = 1:1:syssize[2]
+            sysengr += ham.Hnh.V[st1, st2] * eqgr.V[st1, st2, 1]
+            sysengr += ham.Hnh.V[st1, st2] * eqgr.V[st1, st2, 2]
         end
     end
     #println(sysengr)

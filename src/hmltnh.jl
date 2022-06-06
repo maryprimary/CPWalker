@@ -17,6 +17,8 @@ struct HamConfig3
     npart :: Tuple{Int64, Int64}
     Φt :: Tuple{Slater{Float64}, Slater{Float64}}
     ΦtT :: Tuple{Slater{Float64}, Slater{Float64}}
+    exp_halfdτHn :: DenseFermiOpt{Float64}
+    exp_dτHn :: DenseFermiOpt{Float64}
     exp_halfdτHnhd :: DenseFermiOpt{Float64}
     exp_dτHnhd :: DenseFermiOpt{Float64}
     SSd :: DenseFermiOpt{Float64}
@@ -110,8 +112,18 @@ function density_recur(h0, cutoffbeta, np, mfu, denprf)
     #
     ebhlmat, Smat, phiup, eqgr = get_ham_info(h0, np, cutoffbeta)
     #
-    denarr = load(denprf*".jld", "density")
-    @info "den read ", denarr
+    denarr, duoc = load(denprf*".jld", "density", "duobocc")
+    @info "den read ", denarr, duoc
+    ueffarr = duoc ./ denarr#0.5 * mfu * duoc ./ denarr
+    @info "ueff", ueffarr
+    #heff = copy(h0)
+    #for sidx = 1:1:8
+    #    heff[sidx, sidx] += 3.5*ueffarr[sidx] * denarr[sidx]
+    #end
+    #ebhlmat2, Smat2, phiup2, eqgr2 = get_ham_info(heff, np, cutoffbeta)
+    #denarr2 = [eqgr2[idx, idx] for idx = 1:1:8]
+    #@info denarr2
+    #
     mindis = 1e10
     minueff = 0.0
     ueff = 0.01
@@ -119,24 +131,13 @@ function density_recur(h0, cutoffbeta, np, mfu, denprf)
     while ueff < mfu*4
         heff = copy(h0)
         for sidx = 1:1:ssize
-            heff[sidx, sidx] += ueff * denarr[sidx]
+            heff[sidx, sidx] += ueffarr[sidx] * ueff * denarr[sidx]
         end
         ebhlmat2, Smat2, phiup2, eqgr2 = get_ham_info(heff, np, cutoffbeta)
         denarr2 = [eqgr2[idx, idx] for idx = 1:1:ssize]
-        #for iidx = 1:1:100
-        #    heff = copy(h0)
-        #    for sidx = 1:1:ssize
-        #        heff[sidx, sidx] += ueff * denarr2[sidx]
-        #    end
-        #    ebhlmat2, Smat2, phiup2, eqgr2 = get_ham_info(heff, np, cutoffbeta)
-        #    denarr3 = [eqgr2[idx, idx] for idx = 1:1:ssize]
-        #    if all(isapprox.(denarr3, denarr2, atol=1e-5))
-        #        break
-        #    end
-        #    denarr2 = 0.5*(denarr3+denarr2)
-        #end
-        dis2 = sum((denarr2 - denarr).^2)
-        dis2 = sqrt(dis2)
+        dis2 = sum(abs.(denarr2 - denarr))
+        #dis2 = sqrt(dis2)
+        #dis2 = dot(denarr, denarr2)
         if dis2 < mindis
             mindis = dis2
             minueff = ueff
@@ -149,6 +150,7 @@ function density_recur(h0, cutoffbeta, np, mfu, denprf)
     end
     denarrn = [eqgr[idx, idx] for idx = 1:1:ssize]
     @info "effa ", denarrn, minueff
+    #exit()
     return ebhlmat, Smat, phiup, eqgr
 end
 
@@ -218,9 +220,15 @@ function HamConfig3(h0::Matrix{Float64}, dtau::Float64,
     exphnhd = exphalfhnhd * exphalfhnhd
     exphalfhnhop = DenseFermiOpt("exp(-0.5*dτHL)", exphalfhnhd)
     exphnhop = DenseFermiOpt("exp(-dτHL)", exphnhd)
+    #
+    exphalfhn = exp(-0.5*dtau*h0)
+    exphn = exphalfhn * exphalfhn
+    exphalfhnop = DenseFermiOpt("exp(-0.5*dτHL)", exphalfhn)
+    exphnop = DenseFermiOpt("exp(-dτHL)", exphn)
     return HamConfig3(
         h0op, hlop, dtau, NTuple{4, Int64}[], AuxiliaryField2[],
         (npart1, npart2), (Φt1, Φt2), (adjoint(Φt1), adjoint(Φt2)),
+        exphalfhnop, exphnop,
         exphalfhnhop, exphnhop, Sop, iSop, ebhl
     )
 end
@@ -229,11 +237,12 @@ end
 """
 保存参数
 """
-function save_density_profile(fname, eqgr)
+function save_density_profile(fname, eqgr, duop)
     jlf = jldopen(fname*".jld", "w")
-    meaneqgr = 0.5*(eqgr[:, :, 1] + eqgr[:, :, 2])
+    meaneqgr = eqgr
     ssize = size(eqgr)[1]
     write(jlf, "density", [meaneqgr[idx, idx] for idx = 1:1:ssize])
+    write(jlf, "duobocc", duop)
     close(jlf)
 end
 

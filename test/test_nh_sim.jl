@@ -55,8 +55,8 @@ function run(profilename, previousname)
     L = 8
     Δτ = 0.05
     np = 3
-    nh = 0.1
-    U = 4.0
+    nh = 0.8
+    U = 2.0
     NWLK = 500
     CBT = 20.0
     #
@@ -97,7 +97,8 @@ function run(profilename, previousname)
     initial_meaurements!(cpsim)
     #
     wgt_bin::Vector{Float64} = []
-    grn_bin::Vector{Array{Float64, 3}} = []
+    eng_bin::Vector{Float64} = []
+    grn_bin::Vector{Matrix{Float64}} = []
     duo_bin::Vector{Vector{Float64}} = []
     #
     binnum = 10
@@ -105,24 +106,28 @@ function run(profilename, previousname)
     #观测格林函数
     for bidx = 1:1:binnum
         push!(wgt_bin, 0.0)
-        push!(grn_bin, zeros(L, L, 2))
+        push!(eng_bin, 0.0)
+        push!(grn_bin, zeros(L, L))
         push!(duo_bin, zeros(L))
         #update_backwalkers!(cpsim, 1)
         for midx = 1:1:meanum
             premeas_simulation!(cpsim)
             for widx = 1:1:NWLK
                 wgt_bin[end] = wgt_bin[end] + cpsim.walkers[widx].weight
-                grn_bin[end] = grn_bin[end] + cpsim.eqgrs[widx].V * cpsim.walkers[widx].weight
+                grn_bin[end] = grn_bin[end] + (cpsim.eqgrs[widx].V[:, :, 1] + cpsim.eqgrs[widx].V[:, :, 2])*
+                0.5 * cpsim.walkers[widx].weight
                 duob = zeros(L)
                 for duoidx=1:1:L
                     duob[duoidx] = cpsim.eqgrs[widx].V[duoidx, duoidx, 1] * cpsim.eqgrs[widx].V[duoidx, duoidx, 2]
                 end
                 duo_bin[end] = duo_bin[end] + duob * cpsim.walkers[widx].weight
+                eng_bin[end] = eng_bin[end] + cal_energy(cpsim.eqgrs[widx], cpsim.hamiltonian)
             end
             postmeas_simulation(cpsim)
         end
         grn_bin[end] = grn_bin[end] / wgt_bin[end]
         duo_bin[end] = duo_bin[end] / wgt_bin[end]
+        eng_bin[end] = eng_bin[end] / wgt_bin[end]
         println(bidx)
     end
     #
@@ -131,26 +136,26 @@ function run(profilename, previousname)
         println(wgt_bin[idx])
     end
     #
-    mean_grn = zeros(L, L, 2)
+    mean_grn = zeros(L, L)
     for bidx = 1:1:binnum
         mean_grn += grn_bin[bidx]
     end
     mean_grn /= binnum
-    errn_grn = zeros(L, L, 2)
+    errn_grn = zeros(L, L)
     for bidx = 1:1:binnum
         errn_grn += (grn_bin[bidx] - mean_grn).^2
     end
     errn_grn /= (binnum-1)
     errn_grn = sqrt.(errn_grn)
-    println("ngr ")
+    println("ngr1 ")
     for idx=1:1:L
-        println(0.5*(mean_grn[idx, idx, 1]+mean_grn[idx, idx, 2]),
-        " ", 0.5*(errn_grn[idx, idx, 1] + errn_grn[idx, idx, 2]))
+        println(mean_grn[idx, idx], " ", errn_grn[idx, idx])
+    end
+    println("ngr2 ")
+    for idx=1:1:(L-1)
+        println(mean_grn[idx, idx+1], " ", errn_grn[idx, idx+1], " ", mean_grn[idx+1, idx])
     end
     #
-    for bidx = 1:1:binnum
-        println(bidx, " ", grn_bin[bidx][L, L, 1], " ", grn_bin[bidx][L, L, 2])
-    end
     #
     mean_duo = zeros(L)
     for bidx = 1:1:binnum
@@ -168,10 +173,19 @@ function run(profilename, previousname)
         println(mean_duo[idx], " ", errn_duo[idx])
     end
     #
+    mean_eng = sum(eng_bin) / binnum
+    errnseng = eng_bin .- mean_eng
+    errn_eng = sum(errnseng.^2) / (binnum-1)
+    errn_eng = sqrt(errn_eng)
+    println("eng ", mean_eng, " ", errn_eng)
+    #
     #保存参数
-    save_density_profile(profilename, mean_grn)
+    save_density_profile(profilename, mean_grn, mean_duo)
 end
 
 
 run("iter0", missing)
 #run("iter1", "iter0")
+#run("iter2", "iter1")
+#run("iter3", "iter2")
+#run("iter4", "iter3")

@@ -58,6 +58,61 @@ function step_slice!(wlk::HSWalker3, ham::HamConfig3, tauidxs::Vector{Int64};
 end
 
 
+"""
+向前一个slice(stblz_interval个)
+"""
+function step_slice2!(wlk::HSWalker3, ham::HamConfig3, tauidxs::Vector{Int64};
+    E_trial::Union{Missing, Float64}=missing)
+    if length(tauidxs) == 0
+        return
+    end
+    if ismissing(E_trial)
+        @info "missing E_trial" maxlog=1
+        E_trial = 0.
+    end
+    # e^-0.5ΔtH0 e^ΔtV (e^-0.5ΔtH0 e^-0.5ΔtH0)  e^ΔtV
+    #先做用半个H0
+    wlk.weight = exp(0.5*ham.dτ*E_trial) * wlk.weight
+    #作用
+    multiply_left!(ham.exp_halfdτHn, wlk.Φ[1])
+    multiply_left!(ham.exp_halfdτHn, wlk.Φ[2])
+    update_overlap!(wlk, ham, true)
+    if abs(wlk.weight) < 1e-5
+        return
+    end
+    #除了最后一次，作用e^ΔtV (e^-0.5ΔtH0 e^-0.5ΔtH0)
+    for tidx in tauidxs[1:end-1]
+        for opidx in 1:1:length(ham.Mzints)
+            step_int!(wlk, ham, opidx, tidx)
+            if abs(wlk.weight) < 1e-5
+                return
+            end
+        end
+        wlk.weight = exp(ham.dτ*E_trial) * wlk.weight
+        multiply_left!(ham.exp_dτHn, wlk.Φ[1])
+        multiply_left!(ham.exp_dτHn, wlk.Φ[2])
+        update_overlap!(wlk, ham, true)
+        if abs(wlk.weight) < 1e-5
+            return
+        end
+    end
+    #最后一次，作用e^ΔtV e^-0.5ΔtH0
+    for opidx in 1:1:length(ham.Mzints)
+        step_int!(wlk, ham, opidx, tauidxs[end])
+        if abs(wlk.weight) < 1e-5
+            return
+        end
+    end
+    wlk.weight = exp(0.5*ham.dτ*E_trial) * wlk.weight
+    multiply_left!(ham.exp_halfdτHn, wlk.Φ[1])
+    multiply_left!(ham.exp_halfdτHn, wlk.Φ[2])
+    update_overlap!(wlk, ham, true)
+    if abs(wlk.weight) < 1e-5
+        return
+    end
+end
+
+
 
 """
 向前推进一个相互作用

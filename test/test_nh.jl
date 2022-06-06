@@ -83,22 +83,31 @@ function run()
     for idx = 1:1:10
         start = (idx-1)*10+1
         ends = idx*10
+        println(start, " ", ends)
         #println("wlk overlap a", adjoint(wlk.Φ[1].V)*wlk.Φ[1].V)
-        step_slice!(wlk, ham3, Vector(start:1:ends); E_trial=-5.9871336883973574)
+        #step_slice!(wlk, ham3, Vector(start:1:ends); E_trial=-5.9871336883973574)
+        multiply_left!(ham3.SSd, wlk.Φ[1])
+        multiply_left!(ham3.SSd, wlk.Φ[2])
+        for idx = start:1:ends
+            multiply_left!(adjoint(ham3.exp_dτHnhd), wlk.Φ[1])
+            multiply_left!(adjoint(ham3.exp_dτHnhd), wlk.Φ[2])
+        end
         #-6.846747818353414)
         #println("wlk overlap b", adjoint(wlk.Φ[1].V)*wlk.Φ[1].V)
         #
-        if idx != 10
-            decorate_stablize!(wlk, ham3)
-        end
+        update_overlap!(wlk, ham3, true)
+        #if idx != 10
+            #decorate_stablize!(wlk, ham3)
+            stablize!(wlk, ham3)
+        #end
     end
     #println("ebhl ", ham3.ebhl.V)
     #println(ham3.S.V * adjoint(ham3.S.V) * ham3.exp_dτHnhd.V^100)
     #iterwlk = ham3.S.V * adjoint(ham3.S.V) * wlk.Φ[1].V
-    multiply_left!(ham3.SSd.V, wlk.Φ[1])
-    multiply_left!(ham3.SSd.V, wlk.Φ[2])
-    update_overlap!(wlk, ham3, true)
-    stablize!(wlk, ham3)
+    #multiply_left!(ham3.SSd.V, wlk.Φ[1])
+    #multiply_left!(ham3.SSd.V, wlk.Φ[2])
+    #update_overlap!(wlk, ham3, true)
+    #stablize!(wlk, ham3)
     println("iter1 ", wlk.Φ[1])
     println("iter2 ", wlk.Φ[2])
     igr = get_eqgr_without_back(ham3, wlk)
@@ -106,6 +115,7 @@ function run()
     for idx=1:1:L
         println(igr.V[idx, idx, 1])
     end
+    exit()
     #println(ham3.ebhl.V * ham3.Φt[1].V)
     #println(ham3.S.V * adjoint(ham3.S.V) * ham3.exp_dτHnhd.V^100 * ham3.Φt[1].V)
     #
