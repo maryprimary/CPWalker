@@ -17,7 +17,7 @@ export CPSim2, initialize_simulation!, relaxation_simulation
 export CPSim3, update_backwalkers!
 export E_trial_simulation!, initial_meaurements!
 export premeas_simulation!, postmeas_simulation
-export cal_energy, get_eqgr_without_back
+export cal_energy, get_eqgr_without_back, calculate_eqgr2!
 export save_density_profile
 
 

@@ -342,6 +342,8 @@ function premeas_simulation!(cpsim::CPSim3)
         #cpsim.eqgrs[widx].V .= eqgr.V
         calculate_eqgr!(cpsim.eqgrs[widx], cpsim.hamiltonian, 
         cpsim.walkers[widx], cpsim.stblz_interval)
+        #calculate_eqgr2!(cpsim.eqgrs[widx],
+        #cpsim.walkers[widx], cpsim.walkers)
     end
 end
 
@@ -351,7 +353,7 @@ end
 观测后进行popular control
 """
 function postmeas_simulation(cpsim::CPSim3)
-    popctrl!(cpsim.walkers)
+    #popctrl!(cpsim.walkers)
     weight_rescale!(cpsim.walkers)
 end
 

@@ -72,7 +72,11 @@ end
 function popctrl!(wlks::Vector{T}) where { T <: Union{HSWalker2, HSWalker3} }
     #return
     #部分求和
-    wgttot = sum([wlk.weight for wlk in wlks])
+    wgtarr = [wlk.weight for wlk in wlks]
+    if minimum(wgtarr) > 1e-5
+        return
+    end
+    wgttot = sum(wgtarr)
     wgtavg = wgttot / length(wlks)
     #给所有大于avg的一个概率
     probpair = Tuple{Float64, Int64}[]

@@ -227,6 +227,35 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
 end
 
 
+
+"""
+更新格林函数
+"""
+function calculate_eqgr2!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
+    wlk::HSWalker3, walkers::Vector{HSWalker3})
+    total_weight = sum([wlk.weight for wlk in walkers])
+    ssize = size(meas.V)
+    resgr = zeros(ssize[1], ssize[2], ssize[3])
+    for backwlk in walkers
+        #计算walker和试探波函数（backwalker）的inv（ovlp）
+        #println(backwlk.Φ[1].V, wlk.Φ[1].V)
+        backv1 = adjoint(backwlk.Φ[1].V)
+        #invovlp1 = inv(backv1 * wlk.Φ[1].V)
+        invovlp1 = inv(backv1 * wlk.Φ[1].V)#wlk.Φ[1].V)
+        #println(size(invovlp1))
+        #计算格林函数
+        resgr[:, :, 1] += wlk.Φ[1].V * invovlp1 * backv1 * backwlk.weight
+        #println(size(gr1))
+        backv2 = adjoint(backwlk.Φ[2].V)
+        #invovlp2 = inv(backv2 * wlk.Φ[2].V)
+        invovlp2 = inv(backv2 * wlk.Φ[2].V)#wlk.Φ[2].V)
+        #meas.V[:, :, 2] .= wlk.Φ[2].V * invovlp2 * backv2
+        resgr[:, :, 2] += wlk.Φ[2].V * invovlp2 * backv2 * backwlk.weight
+    end
+    meas.V .= resgr / total_weight
+end
+
+
 """
 初始格林函数
 """
@@ -313,6 +342,7 @@ function cal_energy(eqgr::CPMeasure{:EQGR, Array{Float64, 3}}, ham::HamConfig3)
             sysengr += ham.Hnh.V[st1, st2] * eqgr.V[st1, st2, 2]
         end
     end
+    hopeng = sysengr
     #println(sysengr)
     #interaction
     for opidx = 1:1:length(ham.Mzints)
@@ -328,7 +358,7 @@ function cal_energy(eqgr::CPMeasure{:EQGR, Array{Float64, 3}}, ham::HamConfig3)
             sysengr += -u*eqgr.V[st1, st2, fl1]*eqgr.V[st2, st1, fl1]
         end
     end
-    return sysengr
+    return hopeng, sysengr
 end
 
 

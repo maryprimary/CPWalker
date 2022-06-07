@@ -269,22 +269,35 @@ end
 """
 构造一个非厄米的链
 """
-function construct_chain_lattice(L, nh)
+function construct_chain_lattice(L, Y, nh)
     bonds = []
-    for idx = 1:1:(L-1)
-        push!(bonds, (idx, idx+1, -1+nh))
-        push!(bonds, (idx+1, idx, -1-nh))
+    for idx = 1:1:(L-1); for yidx=1:1:Y
+        stidx = (yidx-1)*L + idx
+        push!(bonds, (stidx, stidx+1, -1+nh))
+        push!(bonds, (stidx+1, stidx, -1-nh))
+    end; end
+    if Y < 2
+        return bonds
     end
+    #竖直的
+    for idx = 1:1:L; for yidx=1:1:Y
+        stidx = (yidx-1)*L + idx
+        yplus1 = yidx == Y ? 1 : yidx+1
+        vtidx = (yplus1-1)*L + idx
+        push!(bonds, (stidx, vtidx, -1))
+        push!(bonds, (vtidx, stidx, -1))
+    end; end
     return bonds
 end
 
-L = 8
+Lo = 8
+Lp = 1
 np= 3
 nh= 0.8
-U = 2.
+U = 4.
 
-println(count_state_num(np, L))
-h0 = get_ham(np, L, construct_chain_lattice(L, nh), U)
+println(count_state_num(np, Lo*Lp))
+h0 = get_ham(np, Lo*Lp, construct_chain_lattice(Lo, Lp, nh), U)
 
 #println(real(h0))
 
@@ -312,27 +325,27 @@ ebhlmat = Hermitian(Smat * denmat2 * adjoint(Smat))
 #hl = real(hl)
 eig = eigen(-ebhlmat)
 
-for idx=1:1:L
-    println(green_value(np, L, eig.vectors[:, 1], idx, idx))
+for idx=1:1:Lo*Lp
+    println(green_value(np, Lo*Lp, eig.vectors[:, 1], idx, idx))
 end
 
 
-for idx=1:1:L
-    println(dencorr_value(np, L, eig.vectors[:, 1], idx, :UP, idx, :DN))
+for idx=1:1:Lo*Lp
+    println(dencorr_value(np, Lo*Lp, eig.vectors[:, 1], idx, :UP, idx, :DN))
 end
 
 
 eng = 0.
-for bnd in construct_chain_lattice(L, nh)
+for bnd in construct_chain_lattice(Lo, Lp, nh)
     global eng
-    eng += 2 * green_value(np, L, eig.vectors[:, 1], bnd[1], bnd[2]) * bnd[3]
+    eng += 2 * green_value(np, Lo*Lp, eig.vectors[:, 1], bnd[1], bnd[2]) * bnd[3]
 end
 
 println("hopping eng ", eng)
 
-for idx = 1:1:L
+for idx = 1:1:Lo*Lp
     global eng
-    eng += U * dencorr_value(np, L, eig.vectors[:, 1], idx, :UP, idx, :DN)
+    eng += U * dencorr_value(np, Lo*Lp, eig.vectors[:, 1], idx, :UP, idx, :DN)
 end
 
 println("eng ", eng)
@@ -351,7 +364,7 @@ eig = eigen(hl)
 #println(real(ebhlmat))
 println(eig.values[1:5])
 
-for idx=1:1:L
-    println(green_value(np, L, eig.vectors[:, 1], idx, idx))
+for idx=1:1:Lo*Lp
+    println(green_value(np, Lo*Lp, eig.vectors[:, 1], idx, idx))
 end
 
