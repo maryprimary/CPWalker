@@ -293,7 +293,7 @@ end
 Lo = 8
 Lp = 1
 np= 3
-nh= 0.8
+nh= 0.0
 U = 4.
 
 println(count_state_num(np, Lo*Lp))

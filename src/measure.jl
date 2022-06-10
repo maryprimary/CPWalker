@@ -160,8 +160,8 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
     #update_overlap!(backwlk, ham, false)
     #for slidx = 1:1:slnum
     #    #每次先做一个
-    #    multiply_left!(adjoint(ham.exp_halfdτHnhd), backwlk.Φ[1])
-    #    multiply_left!(adjoint(ham.exp_halfdτHnhd), backwlk.Φ[2])
+    #    multiply_left!(ham.exp_halfdτHn, backwlk.Φ[1])
+    #    multiply_left!(ham.exp_halfdτHn, backwlk.Φ[2])
     #    for tauidx = 1:1:(stbint-1)
     #        tidx += 1
     #        tidxinv = hssize[2] - tidx + 1
@@ -175,8 +175,8 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
     #            fl2 = ham.Mzints[opidx][4]
     #            backwlk.Φ[fl2].V[st2, :] .= (axfld.ΔV[ichose, fl2]+1)*backwlk.Φ[fl2].V[st2, :]
     #        end
-    #        multiply_left!(adjoint(ham.exp_dτHnhd), backwlk.Φ[1])
-    #        multiply_left!(adjoint(ham.exp_dτHnhd), backwlk.Φ[2])
+    #        multiply_left!(ham.exp_dτHn, backwlk.Φ[1])
+    #        multiply_left!(ham.exp_dτHn, backwlk.Φ[2])
     #    end
     #    tidx += 1
     #    tidxinv = hssize[2] - tidx + 1
@@ -190,8 +190,8 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
     #        fl2 = ham.Mzints[opidx][4]
     #        backwlk.Φ[fl2].V[st2, :] .= (axfld.ΔV[ichose, fl2]+1)*backwlk.Φ[fl2].V[st2, :]
     #    end
-    #    multiply_left!(adjoint(ham.exp_halfdτHnhd), backwlk.Φ[1])
-    #    multiply_left!(adjoint(ham.exp_halfdτHnhd), backwlk.Φ[2])
+    #    multiply_left!(ham.exp_halfdτHn, backwlk.Φ[1])
+    #    multiply_left!(ham.exp_halfdτHn, backwlk.Φ[2])
     #    #if slidx == 1#slnum
     #        stablize!(backwlk, ham; checkovlp=false)
     #    #else
@@ -235,22 +235,24 @@ function calculate_eqgr2!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
     wlk::HSWalker3, walkers::Vector{HSWalker3})
     total_weight = sum([wlk.weight for wlk in walkers])
     ssize = size(meas.V)
+    wsize = size(wlk.Φ[1].V)
     resgr = zeros(ssize[1], ssize[2], ssize[3])
+    #
+    invovlp1 = zeros(wsize[2], wsize[2])
+    invovlp2 = zeros(wsize[2], wsize[2])
     for backwlk in walkers
-        #计算walker和试探波函数（backwalker）的inv（ovlp）
-        #println(backwlk.Φ[1].V, wlk.Φ[1].V)
-        backv1 = adjoint(backwlk.Φ[1].V)
-        #invovlp1 = inv(backv1 * wlk.Φ[1].V)
-        invovlp1 = inv(backv1 * wlk.Φ[1].V)#wlk.Φ[1].V)
-        #println(size(invovlp1))
+        invovlp1 += adjoint(backwlk.Φ[1].V) * wlk.Φ[1].V * backwlk.weight
+        invovlp2 += adjoint(backwlk.Φ[2].V) * wlk.Φ[2].V * backwlk.weight
+    end
+    invovlp1 /= total_weight
+    invovlp2 /= total_weight
+    invovlp1 = inv(invovlp1)
+    invovlp2 = inv(invovlp2)
+    #
+    for backwlk in walkers
         #计算格林函数
-        resgr[:, :, 1] += wlk.Φ[1].V * invovlp1 * backv1 * backwlk.weight
-        #println(size(gr1))
-        backv2 = adjoint(backwlk.Φ[2].V)
-        #invovlp2 = inv(backv2 * wlk.Φ[2].V)
-        invovlp2 = inv(backv2 * wlk.Φ[2].V)#wlk.Φ[2].V)
-        #meas.V[:, :, 2] .= wlk.Φ[2].V * invovlp2 * backv2
-        resgr[:, :, 2] += wlk.Φ[2].V * invovlp2 * backv2 * backwlk.weight
+        resgr[:, :, 1] += wlk.Φ[1].V * invovlp1 * adjoint(backwlk.Φ[1].V) * backwlk.weight
+        resgr[:, :, 2] += wlk.Φ[2].V * invovlp2 * adjoint(backwlk.Φ[2].V) * backwlk.weight
     end
     meas.V .= resgr / total_weight
 end

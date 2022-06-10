@@ -151,7 +151,7 @@ function noorthstablize!(wlk::HSWalker3, ham::HamConfig3; checkovlp=true)
     #stablize中更新overlap不更新weight
     update_overlap!(wlk, ham, false)
     println(testoverlap, wlk.overlap)
-    if checkovlp && abs(testoverlap - wlk.overlap) > 1e-6
+    if checkovlp && wlk.overlap > 1e-5 && abs(testoverlap - wlk.overlap) > 1e-6
         println(testoverlap, " ", wlk.overlap)
         println(wlk)
         println(tempwlkphi1)
@@ -206,7 +206,7 @@ function stablize!(wlk::HSWalker3, ham::HamConfig3; checkovlp=true)
     #因为投影的时候walker变大了，但是weight因为乘了exp(E_trial)所以没变大
     #这里不应该更新权重
     update_overlap!(wlk, ham, false)
-    if checkovlp && abs(testoverlap - wlk.overlap) > 1e-6
+    if checkovlp && abs(wlk.overlap) > 1e-5 && abs(testoverlap - wlk.overlap) > 1e-6 
         println(testoverlap, " ", wlk.overlap)
         println(wlk)
         println(tempwlkphi1)

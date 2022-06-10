@@ -114,39 +114,40 @@ function density_recur(h0, cutoffbeta, np, mfu, denprf)
     #
     denarr, duoc = load(denprf*".jld", "density", "duobocc")
     @info "den read ", denarr, duoc
-    ueffarr = duoc ./ denarr#0.5 * mfu * duoc ./ denarr
-    @info "ueff", ueffarr
-    #heff = copy(h0)
-    #for sidx = 1:1:8
-    #    heff[sidx, sidx] += 3.5*ueffarr[sidx] * denarr[sidx]
-    #end
-    #ebhlmat2, Smat2, phiup2, eqgr2 = get_ham_info(heff, np, cutoffbeta)
-    #denarr2 = [eqgr2[idx, idx] for idx = 1:1:8]
-    #@info denarr2
-    #
     mindis = 1e10
-    minueff = 0.0
-    ueff = 0.01
+    minueff = (0.0, 0.0)
+    ueffl = 0.01
+    ueffr = 0.01
     ssize = size(h0)[1]
-    while ueff < mfu*4
-        heff = copy(h0)
-        for sidx = 1:1:ssize
-            heff[sidx, sidx] += ueffarr[sidx] * ueff * denarr[sidx]
-        end
-        ebhlmat2, Smat2, phiup2, eqgr2 = get_ham_info(heff, np, cutoffbeta)
-        denarr2 = [eqgr2[idx, idx] for idx = 1:1:ssize]
-        dis2 = sum(abs.(denarr2 - denarr))
-        #dis2 = sqrt(dis2)
-        #dis2 = dot(denarr, denarr2)
-        if dis2 < mindis
-            mindis = dis2
-            minueff = ueff
-            ebhlmat = ebhlmat2
-            Smat = Smat2
-            phiup = phiup2
-            eqgr = eqgr2
-        end
-        ueff += 0.01
+    while ueffl < mfu*2; 
+        ueffr = 0.01
+        while ueffr < mfu*2
+            heff = copy(h0)
+            for sidx = 1:1:ssize
+                if mod(sidx, 8) == 1
+                    heff[sidx, sidx] += ueffl * denarr[sidx]
+                elseif mod(sidx, 8) == 0
+                    heff[sidx, sidx] += ueffr * denarr[sidx]
+                else
+                    heff[sidx, sidx] += mfu * denarr[sidx]
+                end      
+            end
+            ebhlmat2, Smat2, phiup2, eqgr2 = get_ham_info(heff, np, cutoffbeta)
+            denarr2 = [eqgr2[idx, idx] for idx = 1:1:ssize]
+            dis2 = sum(abs.(denarr2 - denarr))
+            #dis2 = sqrt(dis2)
+            #dis2 = dot(denarr, denarr2)
+            if dis2 < mindis
+                mindis = dis2
+                minueff = (ueffl, ueffr)
+                ebhlmat = ebhlmat2
+                Smat = Smat2
+                phiup = phiup2
+                eqgr = eqgr2
+            end
+            ueffr += 0.01
+        end; 
+        ueffl += 0.01 
     end
     denarrn = [eqgr[idx, idx] for idx = 1:1:ssize]
     @info "effa ", denarrn, minueff

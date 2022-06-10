@@ -5,6 +5,9 @@
 include("../../CPWalker/src/CPWalker.jl")
 using ..CPWalker
 
+using JLD
+using MPI
+
 
 using LatticeHamiltonian
 using LatticeHamiltonian.SlaterDeterminant
@@ -49,6 +52,18 @@ end
 
 
 """
+保存一个结果
+"""
+function save_bin(bidx, eng, hop, duo)
+    jlh = jldopen("bdata"*bidx*".jld", "w")
+    write(jlh, "eng", eng)
+    write(jlh, "hop", hop)
+    write(jlh, "duo", duo)
+    close(jlh)
+end
+
+
+"""
 运行
 """
 function run(profilename, previousname)
@@ -56,7 +71,7 @@ function run(profilename, previousname)
     Lp = 1
     Δτ = 0.05
     np = 3
-    nh = 0.8
+    nh = 0.0
     U = parse(Float64, ARGS[1])
     NWLK = 500
     CBT = 20.0
@@ -104,7 +119,7 @@ function run(profilename, previousname)
     duo_bin::Vector{Vector{Float64}} = []
     #
     binnum = 10
-    meanum = 10
+    meanum = 300
     #观测格林函数
     for bidx = 1:1:binnum
         push!(wgt_bin, 0.0)
@@ -135,6 +150,11 @@ function run(profilename, previousname)
         eng_bin[end] = eng_bin[end] / wgt_bin[end]
         hop_bin[end] = hop_bin[end] / wgt_bin[end]
         println(bidx)
+        #
+        comm = MPI.COMM_WORLD
+        rank = MPI.Comm_rank(comm)
+        bstr = string(rank)*string(bidx)
+        save_bin(bstr, eng_bin[end], hop_bin[end], duo_bin[end])
     end
     #
     println("wgt")
@@ -196,6 +216,7 @@ function run(profilename, previousname)
 end
 
 
+MPI.Init()
 run("iter0", missing)
 #run("iter1", "iter0")
 #run("iter2", "iter1")

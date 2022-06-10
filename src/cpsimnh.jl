@@ -309,8 +309,8 @@ function premeas_simulation!(cpsim::CPSim3)
         for wlk in cpsim.walkers
             #step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
             #E_trial=cpsim.E_trial)
-            #除了beta cut的最后一次
-            #都做decorate stablize
+            ##除了beta cut的最后一次
+            ##都做decorate stablize
             #if sidx != sttime
             #    decorate_stablize!(wlk, cpsim.hamiltonian)
             #else
@@ -342,8 +342,7 @@ function premeas_simulation!(cpsim::CPSim3)
         #cpsim.eqgrs[widx].V .= eqgr.V
         calculate_eqgr!(cpsim.eqgrs[widx], cpsim.hamiltonian, 
         cpsim.walkers[widx], cpsim.stblz_interval)
-        #calculate_eqgr2!(cpsim.eqgrs[widx],
-        #cpsim.walkers[widx], cpsim.walkers)
+        #calculate_eqgr2!(cpsim.eqgrs[widx], cpsim.walkers[widx], cpsim.walkers)
     end
 end
 
