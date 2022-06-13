@@ -89,7 +89,7 @@ end
 更新格林函数
 """
 function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
-    ham::HamConfig3, wlk::HSWalker3, stbint::Int64)
+    ham::HamConfig3, wlk::HSWalker3, stbint::Int64, bcutint::Int64)
     #if abs(wlk.weight) < 1e-5
     #    return
     #end
@@ -148,9 +148,9 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
             multiply_left!(ham.SSd.V, backwlk.Φ[2])
             #包含在stablize过程中，不需要更新weight
             update_overlap!(backwlk, ham, false)
-            stablize!(backwlk, ham; checkovlp=false)
+            stablize!(backwlk, ham; checkovlp=false, checkwgt=false)
         else
-            decorate_stablize!(backwlk, ham; checkovlp=false)
+            decorate_stablize!(backwlk, ham; checkovlp=false, checkwgt=false)
         end
     end
     #第二种反传
@@ -205,7 +205,7 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
     #    #end
     #end
     #
-    #if backwlk.weight < 1e-5
+    #if backwlk.overlap < 1e-5
     #    wlk.weight = 0
     #    return
     #end
@@ -213,6 +213,12 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
     #println(backwlk.Φ[1].V, wlk.Φ[1].V)
     backv1 = adjoint(backwlk.Φ[1].V)
     #invovlp1 = inv(backv1 * wlk.Φ[1].V)
+    #detcheck = det(backv1 * wlk.Φcache[1].V)
+    #if detcheck < 1e-5
+    #    println(backwlk)
+    #    println(wlk)
+    #    return
+    #end
     invovlp1 = inv(backv1 * wlk.Φcache[1].V)#wlk.Φ[1].V)
     #println(size(invovlp1))
     #计算格林函数
@@ -221,6 +227,11 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
     #println(size(gr1))
     backv2 = adjoint(backwlk.Φ[2].V)
     #invovlp2 = inv(backv2 * wlk.Φ[2].V)
+    #detcheck = det(backv2 * wlk.Φcache[2].V)
+    #if detcheck < 1e-5
+    #    wlk.weight = 0
+    #    return
+    #end
     invovlp2 = inv(backv2 * wlk.Φcache[2].V)#wlk.Φ[2].V)
     #meas.V[:, :, 2] .= wlk.Φ[2].V * invovlp2 * backv2
     meas.V[:, :, 2] .= wlk.Φcache[2].V * invovlp2 * backv2
@@ -231,30 +242,29 @@ end
 """
 更新格林函数
 """
-function calculate_eqgr2!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
-    wlk::HSWalker3, walkers::Vector{HSWalker3})
+function calculate_eqgr2!(meas::CPMeasure{:EQGR, Array{Float64, 3}}, walkers::Vector{HSWalker3})
     total_weight = sum([wlk.weight for wlk in walkers])
+    wlk = walkers[1]
     ssize = size(meas.V)
     wsize = size(wlk.Φ[1].V)
     resgr = zeros(ssize[1], ssize[2], ssize[3])
+    den1 = 0.
+    den2 = 0.
     #
-    invovlp1 = zeros(wsize[2], wsize[2])
-    invovlp2 = zeros(wsize[2], wsize[2])
-    for backwlk in walkers
-        invovlp1 += adjoint(backwlk.Φ[1].V) * wlk.Φ[1].V * backwlk.weight
-        invovlp2 += adjoint(backwlk.Φ[2].V) * wlk.Φ[2].V * backwlk.weight
-    end
-    invovlp1 /= total_weight
-    invovlp2 /= total_weight
-    invovlp1 = inv(invovlp1)
-    invovlp2 = inv(invovlp2)
-    #
-    for backwlk in walkers
-        #计算格林函数
-        resgr[:, :, 1] += wlk.Φ[1].V * invovlp1 * adjoint(backwlk.Φ[1].V) * backwlk.weight
-        resgr[:, :, 2] += wlk.Φ[2].V * invovlp2 * adjoint(backwlk.Φ[2].V) * backwlk.weight
-    end
-    meas.V .= resgr / total_weight
+    for wlk1 in walkers; for wlk2 in walkers
+        #up
+        inner12 = det(adjoint(wlk1.Φ[1].V)*wlk2.Φ[1].V)
+        green12 = wlk2.Φ[1].V * adjoint(wlk1.Φ[1].V)
+        den1 = den1 + wlk1.weight * wlk2.weight * inner12
+        resgr[:, :, 1] = resgr[:, :, 1] .+ green12 * wlk1.weight * wlk2.weight
+        #dn
+        inner12 = det(adjoint(wlk1.Φ[2].V)*wlk2.Φ[2].V)
+        green12 = wlk2.Φ[2].V * adjoint(wlk1.Φ[2].V)
+        den2 = den2 + wlk1.weight * wlk2.weight * inner12
+        resgr[:, :, 2] = resgr[:, :, 2] .+ green12 * wlk1.weight * wlk2.weight
+    end; end
+    meas.V[:, :, 1] .= resgr[:, :, 1] / den1
+    meas.V[:, :, 2] .= resgr[:, :, 2] / den2
 end
 
 

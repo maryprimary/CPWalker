@@ -77,9 +77,9 @@ end
 """
 先做用在正交归一
 """
-function decorate_stablize!(wlk::HSWalker3, ham::HamConfig3; checkovlp=true)
+function decorate_stablize!(wlk::HSWalker3, ham::HamConfig3; checkovlp=true, checkwgt=true)
     #@info wlk.weight
-    if wlk.weight < 1e-8
+    if checkwgt && wlk.weight < 1e-8
         return
     end
     slasize = size(wlk.Φ[1].V)
@@ -122,8 +122,8 @@ end
 """
 给walker重新归一化
 """
-function noorthstablize!(wlk::HSWalker3, ham::HamConfig3; checkovlp=true)
-    if wlk.weight < 1e-8
+function noorthstablize!(wlk::HSWalker3, ham::HamConfig3; checkovlp=true, checkwgt=true)
+    if checkwgt && wlk.weight < 1e-8
         return
     end
     tempwlkphi1 = copy(wlk.Φ[1].V)
@@ -165,9 +165,9 @@ end
 """
 给walker重新正交归一化
 """
-function stablize!(wlk::HSWalker3, ham::HamConfig3; checkovlp=true)
+function stablize!(wlk::HSWalker3, ham::HamConfig3; checkovlp=true, checkwgt=true)
     #@info wlk.weight
-    if wlk.weight < 1e-8
+    if checkwgt && wlk.weight < 1e-8
         return
     end
     tempwlkphi1 = copy(wlk.Φ[1].V)

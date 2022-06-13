@@ -265,6 +265,34 @@ function dencorr_value(npart, nsite, gndvec, st1, sp1, st2, sp2)
 end
 
 
+"""
+构造双子格子正方晶格
+"""
+function construc_ckb_lattice(L, nh)
+    bonds = []
+    push!(bonds, (1, 2 ,-1))
+    push!(bonds, (2, 1 ,-1))
+    push!(bonds, (2, 7 ,-1))
+    push!(bonds, (7, 2 ,-1))
+    push!(bonds, (7, 8 ,-1))
+    push!(bonds, (8, 7 ,-1))
+    push!(bonds, (1, 8 ,-1))
+    push!(bonds, (8, 1 ,-1))
+    push!(bonds, (3, 4 ,-1))
+    push!(bonds, (4, 3 ,-1))
+    push!(bonds, (5, 6 ,-1))
+    push!(bonds, (6, 5 ,-1))
+    push!(bonds, (6, 7 ,-1-nh))
+    push!(bonds, (7, 6 ,-1+nh))
+    push!(bonds, (7, 4 ,-1-nh))
+    push!(bonds, (4, 7 ,-1+nh))
+    push!(bonds, (5, 2 ,-1-nh))
+    push!(bonds, (2, 5 ,-1+nh))
+    push!(bonds, (2, 3 ,-1-nh))
+    push!(bonds, (3, 2 ,-1+nh))
+    return bonds
+end
+
 
 """
 构造一个非厄米的链
@@ -276,6 +304,8 @@ function construct_chain_lattice(L, Y, nh)
         push!(bonds, (stidx, stidx+1, -1+nh))
         push!(bonds, (stidx+1, stidx, -1-nh))
     end; end
+    #push!(bonds, (1, L, -1+nh))
+    #push!(bonds, (L, 1, -1-nh))
     if Y < 2
         return bonds
     end
@@ -285,7 +315,9 @@ function construct_chain_lattice(L, Y, nh)
         yplus1 = yidx == Y ? 1 : yidx+1
         vtidx = (yplus1-1)*L + idx
         push!(bonds, (stidx, vtidx, -1))
-        push!(bonds, (vtidx, stidx, -1))
+        if Y != 2
+            push!(bonds, (vtidx, stidx, -1))
+        end
     end; end
     return bonds
 end
@@ -293,11 +325,12 @@ end
 Lo = 8
 Lp = 1
 np= 3
-nh= 0.0
+nh= 0.1
 U = 4.
 
 println(count_state_num(np, Lo*Lp))
 h0 = get_ham(np, Lo*Lp, construct_chain_lattice(Lo, Lp, nh), U)
+#)construc_ckb_lattice(Lo, nh), U
 
 #println(real(h0))
 
@@ -309,7 +342,7 @@ Smat = eigh0.vectors
 
 #println("smat ", Smat)
 
-cbt = 20
+cbt = 5
 
 
 
@@ -337,6 +370,7 @@ end
 
 eng = 0.
 for bnd in construct_chain_lattice(Lo, Lp, nh)
+    #construc_ckb_lattice(Lo, nh)#
     global eng
     eng += 2 * green_value(np, Lo*Lp, eig.vectors[:, 1], bnd[1], bnd[2]) * bnd[3]
 end
@@ -360,7 +394,8 @@ hl = - (1/cbt) * log(ebhlmat)
 hl = real(hl)
 
 #eig = eigen(-ebhlmat)
-eig = eigen(hl)
+#eig = eigen(hl)
+eig = eigh0
 #println(real(ebhlmat))
 println(eig.values[1:5])
 

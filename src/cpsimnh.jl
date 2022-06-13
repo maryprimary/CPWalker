@@ -23,15 +23,16 @@ mutable struct CPSim3
     backwlks :: Union{Missing, Vector{HSWalker3}}
     stblz_interval :: Int64
     beta_cut_intrv :: Int64
+    back_prg_intrv :: Int64
     eqgrs :: Vector{CPMeasure{:EQGR, Array{Float64, 3}}}
 end
 
 
 
 function CPSim3(ham::HamConfig3, walkers::Vector{HSWalker3},
-    stblz_interval::Int64, pctrl_interval::Int64)
+    stblz_interval::Int64, bcut_interval::Int64, bprg_interval)
     return CPSim3(
-        ham, missing, walkers, missing, stblz_interval, pctrl_interval,
+        ham, missing, walkers, missing, stblz_interval, bcut_interval, bprg_interval,
         CPMeasure{:EQGR, Array{Float64, 3}}[]
     )
 end
@@ -202,7 +203,7 @@ end
 """
 function initial_meaurements!(cpsim::CPSim3)
     for wlk in cpsim.walkers
-        wlk.hshist = zeros(Int64, length(cpsim.hamiltonian.Mzints), cpsim.beta_cut_intrv)
+        wlk.hshist = zeros(Int64, length(cpsim.hamiltonian.Mzints), cpsim.back_prg_intrv)
         wlk.Φcache = (Slater{Float64}(wlk.Φ[1].name*"_back_1", copy(wlk.Φ[1].V)),
         Slater{Float64}(wlk.Φ[2].name*"_back_2", copy(wlk.Φ[2].V)))
         lattsize = size(cpsim.hamiltonian.Hnh.V)[1]
@@ -211,85 +212,31 @@ function initial_meaurements!(cpsim::CPSim3)
 end
 
 
-"""
-准备反传的walker
-"""
-function update_backwalkers!(cpsim::CPSim3, bctime::Int64)
-    #
-    if ismissing(cpsim.backwlks)
-        cpsim.backwlks = Vector{HSWalker3}(undef, length(cpsim.walkers))
-    end
-    bwlk1 = HSWalker3("backwlk1", cpsim.hamiltonian,
-    copy(cpsim.hamiltonian.Φt[1].V), copy(cpsim.hamiltonian.Φt[2].V), 1.0)
-    cpsim.backwlks[1] = bwlk1
-    for idx=2:1:length(cpsim.walkers)
-        cpsim.backwlks[idx] = clone(bwlk1, "backwlk"*string(idx))
-    end
-    #
-    for pidx = 1:1:(bctime-1)
-        sttime = Int64(cpsim.beta_cut_intrv//cpsim.stblz_interval)
-        taumat = Matrix{Int64}(undef, sttime, cpsim.stblz_interval)
-        rstart = (pidx-1)*cpsim.beta_cut_intrv
-        for sid1 = 1:1:sttime; for sid2 = 1:1:cpsim.stblz_interval
-            taumat[sid1, sid2] = rstart
-            rstart += 1
-        end; end
-        #println(sttime, " ", taumat)
-        @Threads.threads for wlk in cpsim.backwlks
-            #除了beta cut的最后一次
-            #都做decorate stablize
-            for sidx = 1:1:(sttime-1)
-                step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
-                E_trial=cpsim.E_trial)
-                decorate_stablize!(wlk, cpsim.hamiltonian)
-            end
-            sidx = sttime
-            step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
-            E_trial=cpsim.E_trial)
-            multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
-            multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
-            #包含在stablize过程中，不需要更新weight
-            update_overlap!(wlk, cpsim.hamiltonian, false)
-            stablize!(wlk, cpsim.hamiltonian)
-        end
-        weight_rescale!(cpsim.backwlks)
-        popctrl!(cpsim.backwlks)
-    end
-    ##最后一次
-    sttime = Int64(cpsim.beta_cut_intrv//cpsim.stblz_interval)
-    taumat = Matrix{Int64}(undef, sttime, cpsim.stblz_interval)
-    rstart = (bctime-1)*cpsim.beta_cut_intrv
-    for sid1 = 1:1:sttime; for sid2 = 1:1:cpsim.stblz_interval
-        taumat[sid1, sid2] = rstart
-        rstart += 1
-    end; end
-    #println(sttime, " ", taumat)
-    @Threads.threads for wlk in cpsim.backwlks
-        #除了beta cut的最后一次
-        #都做decorate stablize
-        for sidx = 1:1:(sttime-1)
-            step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
-            E_trial=cpsim.E_trial)
-            decorate_stablize!(wlk, cpsim.hamiltonian)
-        end
-        sidx = sttime
-        step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
-        E_trial=cpsim.E_trial)
-        multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
-        multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
-        #包含在stablize过程中，不需要更新weight
-        update_overlap!(wlk, cpsim.hamiltonian, false)
-        stablize!(wlk, cpsim.hamiltonian)
-    end
-    weight_rescale!(cpsim.backwlks)
-    popctrl!(cpsim.backwlks)
-end
-
 
 """
 measure前的准备
 """
-function premeas_simulation!(cpsim::CPSim3)
+function premeas_simulation!(cpsim::CPSim3)#, cache)
+    #
+    sttime = Int64(cpsim.beta_cut_intrv//cpsim.stblz_interval)
+    bptime = Int64(cpsim.back_prg_intrv//cpsim.stblz_interval)
+    #反传之前
+    for sidx = 1:1:(sttime-bptime)
+        for wlk in cpsim.walkers
+            if sidx == 1
+                multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
+                multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
+                update_overlap!(wlk, cpsim.hamiltonian, true)
+            end
+            step_slice2!(wlk, cpsim.hamiltonian, zeros(Int64, cpsim.stblz_interval);
+            E_trial=cpsim.E_trial)
+            stablize!(wlk, cpsim.hamiltonian)
+        end
+        weight_rescale!(cpsim.walkers)
+        if sidx != sttime
+            popctrl!(cpsim.walkers)
+        end
+    end
     #存储用来反传的slater
     for wlk in cpsim.walkers
         wlk.hshist .= 0
@@ -297,37 +244,21 @@ function premeas_simulation!(cpsim::CPSim3)
         wlk.Φcache[2].V .= wlk.Φ[2].V
     end
     #
-    sttime = Int64(cpsim.beta_cut_intrv//cpsim.stblz_interval)
-    taumat = Matrix{Int64}(undef, sttime, cpsim.stblz_interval)
+    taumat = Matrix{Int64}(undef, bptime, cpsim.stblz_interval)
     rstart = 0
-    for sid1 = 1:1:sttime; for sid2 = 1:1:cpsim.stblz_interval
+    for sid1 = 1:1:bptime; for sid2 = 1:1:cpsim.stblz_interval
         taumat[sid1, sid2] = rstart
         rstart += 1
     end; end
     #println(sttime, " ", taumat)
-    for sidx = 1:1:sttime
+    for sidx = (sttime-bptime+1):1:sttime
         for wlk in cpsim.walkers
-            #step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
-            #E_trial=cpsim.E_trial)
-            ##除了beta cut的最后一次
-            ##都做decorate stablize
-            #if sidx != sttime
-            #    decorate_stablize!(wlk, cpsim.hamiltonian)
-            #else
-            #    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
-            #    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
-            #    #println(cpsim.walkers[1].weight)
-            #    #包含在stablize过程中，不需要更新weight
-            #    update_overlap!(wlk, cpsim.hamiltonian, false)
-            #    #println(cpsim.walkers[1].weight)
-            #    stablize!(wlk, cpsim.hamiltonian)
-            #end
             if sidx == 1
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
                 update_overlap!(wlk, cpsim.hamiltonian, true)
             end
-            step_slice2!(wlk, cpsim.hamiltonian, taumat[sidx, :];
+            step_slice2!(wlk, cpsim.hamiltonian, taumat[sidx+bptime-sttime, :];
             E_trial=cpsim.E_trial)
             stablize!(wlk, cpsim.hamiltonian)
         end
@@ -340,10 +271,14 @@ function premeas_simulation!(cpsim::CPSim3)
     for widx = 1:1:length(cpsim.walkers)
         #eqgr = get_eqgr_without_back(cpsim.hamiltonian, cpsim.walkers[widx])
         #cpsim.eqgrs[widx].V .= eqgr.V
-        calculate_eqgr!(cpsim.eqgrs[widx], cpsim.hamiltonian, 
-        cpsim.walkers[widx], cpsim.stblz_interval)
-        #calculate_eqgr2!(cpsim.eqgrs[widx], cpsim.walkers[widx], cpsim.walkers)
+        calculate_eqgr!(cpsim.eqgrs[widx], cpsim.hamiltonian,
+        cpsim.walkers[widx], cpsim.stblz_interval, cpsim.beta_cut_intrv)
     end
+    #exit()
+    #calculate_eqgr2!(cpsim.eqgrs[1], cpsim.walkers)
+    #for widx = 2:1:length(cpsim.walkers)
+    #    cpsim.eqgrs[widx].V .= cpsim.eqgrs[1].V
+    #end
 end
 
 
@@ -352,7 +287,7 @@ end
 观测后进行popular control
 """
 function postmeas_simulation(cpsim::CPSim3)
-    #popctrl!(cpsim.walkers)
+    popctrl!(cpsim.walkers)
     weight_rescale!(cpsim.walkers)
 end
 
