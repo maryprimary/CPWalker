@@ -58,13 +58,14 @@ function run()
     np = 3
     nh = 0.4
     U = 0.0
+    CBT = 2.0
     #
     h0 = construct_chain_lattice(L, 1, nh)
     #
     println("close ", eigvals(h0))
 
     #一定要注意，HL的close shell问题
-    ham3 = HamConfig3(h0, Δτ, np, np, 1.0)
+    ham3 = HamConfig3(h0, Δτ, np, np, CBT)
 
     println(h0)
     #return
@@ -79,28 +80,38 @@ function run()
     println("wlkini overlap", adjoint(wlk.Φ[1].V)*wlk.Φ[1].V)
     #
     igr = get_eqgr_without_back(ham3, wlk)
+    hop, eng = cal_energy(igr, ham3)
+    println("ener ", eng)
+    println(eigvals(ham3.HL.V))
     #
-    for idx = 1:1:10
+    println(wlk.overlap)
+    multiply_left!(ham3.SSd, wlk.Φ[1])
+    multiply_left!(ham3.SSd, wlk.Φ[2])
+    update_overlap!(wlk, ham3, true)
+    println(wlk.overlap)
+    #
+    for idx = 1:1:2
         start = (idx-1)*10+1
         ends = idx*10
-        println(start, " ", ends)
+        #println(start, " ", ends)
         #println("wlk overlap a", adjoint(wlk.Φ[1].V)*wlk.Φ[1].V)
         #step_slice!(wlk, ham3, Vector(start:1:ends); E_trial=-5.9871336883973574)
-        multiply_left!(ham3.SSd, wlk.Φ[1])
-        multiply_left!(ham3.SSd, wlk.Φ[2])
-        for idx = start:1:ends
+        for tidx = start:1:ends
             multiply_left!(adjoint(ham3.exp_dτHnhd), wlk.Φ[1])
             multiply_left!(adjoint(ham3.exp_dτHnhd), wlk.Φ[2])
+            update_overlap!(wlk, ham3, true)
+            println(wlk.overlap)
         end
-        #-6.846747818353414)
-        #println("wlk overlap b", adjoint(wlk.Φ[1].V)*wlk.Φ[1].V)
-        #
-        update_overlap!(wlk, ham3, true)
-        #if idx != 10
-            #decorate_stablize!(wlk, ham3)
-            stablize!(wlk, ham3)
-        #end
+        stablize!(wlk, ham3)
     end
+    update_overlap!(wlk, ham3, true)
+    println(wlk)
+    stablize!(wlk, ham3; checkwgt=false, checkovlp=false)
+    println(wlk)
+    update_overlap!(wlk, ham3, true)
+    println(wlk.weight)
+    println(wlk.weight*exp(CBT*eng))
+    exit()
     #println("ebhl ", ham3.ebhl.V)
     #println(ham3.S.V * adjoint(ham3.S.V) * ham3.exp_dτHnhd.V^100)
     #iterwlk = ham3.S.V * adjoint(ham3.S.V) * wlk.Φ[1].V
