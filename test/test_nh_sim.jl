@@ -126,7 +126,7 @@ function run(profilename, previousname)
     Lp = 1
     Δτ = 0.05
     np = 3
-    nh = 0.1
+    nh = 0.4
     U = parse(Float64, ARGS[1])
     NWLK = 500
     CBT = 10.0
@@ -149,7 +149,7 @@ function run(profilename, previousname)
     for idx=2:1:NWLK
         wlks[idx] = clone(wlk1, "wlk"*string(idx))
     end
-    cpsim = CPSim3(ham3, wlks, 10, Int64(CBT*20), 40)#Int64(CBT*20))
+    cpsim = CPSim3(ham3, wlks, 10, Int64(CBT*20), Int64(CBT*20))
     #println(cpsim)
     initialize_simulation!(cpsim)
     println(cpsim.E_trial)

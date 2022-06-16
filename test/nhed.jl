@@ -325,7 +325,7 @@ end
 Lo = 8
 Lp = 1
 np= 3
-nh= 0.1
+nh= 0.4
 U = 4.
 
 println(count_state_num(np, Lo*Lp))
@@ -342,7 +342,7 @@ Smat = eigh0.vectors
 
 #println("smat ", Smat)
 
-cbt = 5
+cbt = 10
 
 
 
