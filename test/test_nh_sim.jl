@@ -109,13 +109,45 @@ end
 """
 保存一个结果
 """
-function save_bin(bidx, eng, hop, duo)
+function save_bin(bidx, eng, hop, duo, grn, szc)
     jlh = jldopen("bdata"*bidx*".jld", "w")
     write(jlh, "eng", eng)
     write(jlh, "hop", hop)
     write(jlh, "duo", duo)
+    write(jlh, "grn", grn)
+    write(jlh, "szc", szc)
     close(jlh)
 end
+
+
+"""
+计算自旋关联
+"""
+function spinzz(grn1, grn2, st1, st2)
+    sz = 0.
+    # n 1 up n 2 up
+    if st1 == st2
+        sz = sz + grn1[st1, st2]
+    else
+        sz = sz + grn1[st1, st1] * grn1[st2, st2] - grn1[st1, st2] * grn1[st2, st1]
+    end
+    # - n 1 up n 2 dn
+    sz = sz - grn1[st1, st1] * grn2[st2, st2]
+    # - n 1 dn n 2 up
+    sz = sz - grn2[st1, st1] * grn1[st2, st2]
+    # n 1 dn n 2 dn
+    if st1 == st2
+        sz = sz + grn2[st1, st2]
+    else
+        sz = sz + grn2[st1, st1] * grn2[st2, st2] - grn2[st1, st2] * grn2[st2, st1]
+    end
+    return sz
+end
+
+
+"""
+超导关联
+"""
 
 
 """
@@ -126,10 +158,10 @@ function run(profilename, previousname)
     Lp = 1
     Δτ = 0.05
     np = 3
-    nh = 0.4
+    nh = 0.1
     U = parse(Float64, ARGS[1])
     NWLK = 500
-    CBT = 10.0
+    CBT = 4.0
     #
     h0 = construct_chain_lattice(Lo, Lp, nh)
     println(h0)
@@ -173,6 +205,7 @@ function run(profilename, previousname)
     hop_bin::Vector{Float64} = []
     grn_bin::Vector{Matrix{Float64}} = []
     duo_bin::Vector{Vector{Float64}} = []
+    szc_bin::Vector{Matrix{Float64}} = []
     #
     binnum = 10
     meanum = 300
@@ -183,6 +216,7 @@ function run(profilename, previousname)
         push!(hop_bin, 0.0)
         push!(grn_bin, zeros(Lo*Lp, Lo*Lp))
         push!(duo_bin, zeros(Lo*Lp))
+        push!(szc_bin, zeros(Lo*Lp, Lo*Lp))
         #update_backwalkers!(cpsim, 1)
         for midx = 1:1:meanum
             #premeas_simulation!(cpsim, true)
@@ -199,6 +233,10 @@ function run(profilename, previousname)
                 hop, eng = cal_energy(cpsim.eqgrs[widx], cpsim.hamiltonian)
                 eng_bin[end] = eng_bin[end] + eng * cpsim.walkers[widx].weight
                 hop_bin[end] = hop_bin[end] + hop * cpsim.walkers[widx].weight
+                for st1=1:1:Lo*Lp; for st2=1:1:Lo*Lp
+                    szc_bin[end][st1, st2] = szc_bin[end][st1, st2] +
+                    spinzz(cpsim.eqgrs[widx].V[:, :, 1], cpsim.eqgrs[widx].V[:, :, 2], st1, st2)*cpsim.walkers[widx].weight
+                end; end
             end
             postmeas_simulation(cpsim)
         end
@@ -206,12 +244,13 @@ function run(profilename, previousname)
         duo_bin[end] = duo_bin[end] / wgt_bin[end]
         eng_bin[end] = eng_bin[end] / wgt_bin[end]
         hop_bin[end] = hop_bin[end] / wgt_bin[end]
+        szc_bin[end] = szc_bin[end] / wgt_bin[end]
         println(bidx)
         #
         comm = MPI.COMM_WORLD
         rank = MPI.Comm_rank(comm)
         bstr = string(rank)*string(bidx)
-        save_bin(bstr, eng_bin[end], hop_bin[end], duo_bin[end])
+        save_bin(bstr, eng_bin[end], hop_bin[end], duo_bin[end], grn_bin[end], szc_bin[end])
     end
     #
     println("wgt")
@@ -268,6 +307,21 @@ function run(profilename, previousname)
     println("eng ", mean_eng, " ", errn_eng)
     println("hop ", mean_hop, " ", errn_hop)
     #
+    mean_szc = zeros(Lo*Lp, Lo*Lp)
+    for bidx = 1:1:binnum
+        mean_szc += szc_bin[bidx]
+    end
+    mean_szc /= binnum
+    errn_szc = zeros(Lo*Lp, Lo*Lp)
+    for bidx = 1:1:binnum
+        errn_szc += (szc_bin[bidx] - mean_szc).^2
+    end
+    errn_szc /= (binnum-1)
+    errn_szc = sqrt.(errn_szc)
+    println("szc ")
+    for idx=1:1:Lo*Lp
+        println(mean_szc[4, idx], " ", errn_szc[idx, idx])
+    end
     #保存参数
     save_density_profile(profilename, mean_grn, mean_duo)
 end

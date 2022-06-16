@@ -143,7 +143,7 @@ function calculate_eqgr!(meas::CPMeasure{:EQGR, Array{Float64, 3}},
         end
         multiply_left!(ham.exp_halfdτHnhd, backwlk.Φ[1])
         multiply_left!(ham.exp_halfdτHnhd, backwlk.Φ[2])
-        if slidx == (bcutint//stbint)#slnum
+        if slidx == slnum
             multiply_left!(ham.SSd.V, backwlk.Φ[1])
             multiply_left!(ham.SSd.V, backwlk.Φ[2])
             #包含在stablize过程中，不需要更新weight
