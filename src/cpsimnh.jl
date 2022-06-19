@@ -96,6 +96,14 @@ function relaxation_simulation(cpsim::CPSim3, bctime::Int64)
         end; end
         #println(sttime, " ", taumat)
         for sidx = 1:1:sttime
+            if sidx == 1
+                for wlk in cpsim.walkers
+                    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
+                    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
+                    update_overlap!(wlk, cpsim.hamiltonian, true)
+                end
+                weight_rescale!(cpsim.walkers)
+            end
             for wlk in cpsim.walkers
                 #step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
                 #E_trial=cpsim.E_trial)
@@ -110,11 +118,6 @@ function relaxation_simulation(cpsim::CPSim3, bctime::Int64)
                 #    #println(cpsim.walkers[1].weight)
                 #    stablize!(wlk, cpsim.hamiltonian)
                 #end
-                if sidx == 1
-                    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
-                    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
-                    update_overlap!(wlk, cpsim.hamiltonian, true)
-                end
                 step_slice2!(wlk, cpsim.hamiltonian, taumat[sidx, :];
                 E_trial=cpsim.E_trial)
                 stablize!(wlk, cpsim.hamiltonian)
@@ -148,12 +151,15 @@ function E_trial_simulation!(cpsim::CPSim3)
         #for wlk in cpsim.walkers
         #    step_slice!(wlk, cpsim.hamiltonian, taus; E_trial=cpsim.E_trial)
         #end
-        for wlk in cpsim.walkers
-            if epidx == 1
+        if epidx == 1
+            for wlk in cpsim.walkers
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
                 update_overlap!(wlk, cpsim.hamiltonian, true)
             end
+            weight_rescale!(cpsim.walkers)
+        end     
+        for wlk in cpsim.walkers
             step_slice2!(wlk, cpsim.hamiltonian, taus; E_trial=cpsim.E_trial)
         end
         #exp(Δτ * steps * E_gnd) * wgtsum = length(cpsim.walkers)
@@ -222,12 +228,16 @@ function premeas_simulation!(cpsim::CPSim3)#, cache)
     bptime = Int64(cpsim.back_prg_intrv//cpsim.stblz_interval)
     #反传之前
     for sidx = 1:1:(sttime-bptime)
-        for wlk in cpsim.walkers
-            if sidx == 1
+        #每次先做一个SSd
+        if sidx == 1
+            for wlk in cpsim.walkers
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
                 update_overlap!(wlk, cpsim.hamiltonian, true)
             end
+            weight_rescale!(cpsim.walkers)
+        end
+        for wlk in cpsim.walkers
             step_slice2!(wlk, cpsim.hamiltonian, zeros(Int64, cpsim.stblz_interval);
             E_trial=cpsim.E_trial)
             stablize!(wlk, cpsim.hamiltonian)
@@ -252,12 +262,16 @@ function premeas_simulation!(cpsim::CPSim3)#, cache)
     end; end
     #println(sttime, " ", taumat)
     for sidx = (sttime-bptime+1):1:sttime
-        for wlk in cpsim.walkers
-            if sidx == 1
+        #每次先做一个SSd
+        if sidx == 1
+            for wlk in cpsim.walkers
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
                 update_overlap!(wlk, cpsim.hamiltonian, true)
             end
+            weight_rescale!(cpsim.walkers)
+        end
+        for wlk in cpsim.walkers
             step_slice2!(wlk, cpsim.hamiltonian, taumat[sidx+bptime-sttime, :];
             E_trial=cpsim.E_trial)
             stablize!(wlk, cpsim.hamiltonian)

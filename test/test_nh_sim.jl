@@ -109,13 +109,14 @@ end
 """
 保存一个结果
 """
-function save_bin(bidx, eng, hop, duo, grn, szc)
+function save_bin(bidx, eng, hop, duo, grn, szc, spy)
     jlh = jldopen("bdata"*bidx*".jld", "w")
     write(jlh, "eng", eng)
     write(jlh, "hop", hop)
     write(jlh, "duo", duo)
     write(jlh, "grn", grn)
     write(jlh, "szc", szc)
+    write(jlh, "spy", spy)
     close(jlh)
 end
 
@@ -146,9 +147,28 @@ end
 
 
 """
-超导关联
+超导关联1
 """
-
+function spcdyy(grn1, grn2, x1, y1, x2, y2, Lp, Lo)
+    sc = 0.
+    st1 = (y1-1)*Lo + x1
+    st2 = (y2-1)*Lo + x2
+    y1p1 = y1 == Lp ? 1 : y1+1
+    y2p1 = y2 == Lp ? 1 : y2+1
+    st1py = (y1p1-1)*Lo + x1
+    st2py = (y2p1-1)*Lo + x2
+    # 0.5 * (st1 up st1+y dn - st1 dn st1+y up) ( st2+y dn st2 up - st2+y up st2 dn)
+    # st1 up st1+y dn st2+y dn st2 up
+    sc = sc + grn1[st1, st2] * grn2[st1py, st2py]
+    # - st1 up st1+y dn st2+y up st2 dn
+    sc = sc + grn1[st1, st2py] * grn2[st1py, st2]
+    # - st1 dn st1+y up st2+y dn st2 up
+    sc = sc + grn2[st1, st2py] * grn1[st1py, st2]
+    # st1 dn st1+y up st2+y up st2 dn
+    sc = sc + grn2[st1, st2] * grn1[st1py, st2py]
+    sc = 0.5*sc
+    return sc
+end
 
 """
 运行
@@ -158,14 +178,12 @@ function run(profilename, previousname)
     Lp = 1
     Δτ = 0.05
     np = 3
-    nh = 0.1
+    nh = 0.0
     U = parse(Float64, ARGS[1])
-    NWLK = 500
-    CBT = 4.0
+    NWLK = 100
+    CBT = 5.0
     #
     h0 = construct_chain_lattice(Lo, Lp, nh)
-    println(h0)
-    println(eigvals(h0))
     #
     ham3 = HamConfig3(h0, Δτ, np, np, CBT; denprf=previousname, mfu=U)
     #
@@ -206,9 +224,10 @@ function run(profilename, previousname)
     grn_bin::Vector{Matrix{Float64}} = []
     duo_bin::Vector{Vector{Float64}} = []
     szc_bin::Vector{Matrix{Float64}} = []
+    spy_bin::Vector{Matrix{Float64}} = []
     #
     binnum = 10
-    meanum = 300
+    meanum = 100
     #观测格林函数
     for bidx = 1:1:binnum
         push!(wgt_bin, 0.0)
@@ -217,6 +236,7 @@ function run(profilename, previousname)
         push!(grn_bin, zeros(Lo*Lp, Lo*Lp))
         push!(duo_bin, zeros(Lo*Lp))
         push!(szc_bin, zeros(Lo*Lp, Lo*Lp))
+        push!(spy_bin, zeros(Lo*Lp, Lo*Lp))
         #update_backwalkers!(cpsim, 1)
         for midx = 1:1:meanum
             #premeas_simulation!(cpsim, true)
@@ -235,8 +255,17 @@ function run(profilename, previousname)
                 hop_bin[end] = hop_bin[end] + hop * cpsim.walkers[widx].weight
                 for st1=1:1:Lo*Lp; for st2=1:1:Lo*Lp
                     szc_bin[end][st1, st2] = szc_bin[end][st1, st2] +
-                    spinzz(cpsim.eqgrs[widx].V[:, :, 1], cpsim.eqgrs[widx].V[:, :, 2], st1, st2)*cpsim.walkers[widx].weight
+                    spinzz(cpsim.eqgrs[widx].V[:, :, 1], cpsim.eqgrs[widx].V[:, :, 2],
+                    st1, st2)*cpsim.walkers[widx].weight
                 end; end
+                #
+                for x1=1:1:Lo; for y1=1:1:Lp; for x2=1:1:Lo; for y2=1:1:Lp
+                    st1 = (y1-1)*Lo + x1
+                    st2 = (y2-1)*Lo + x2
+                    spy_bin[end][st1, st2] = spy_bin[end][st1, st2] +
+                    spcdyy(cpsim.eqgrs[widx].V[:, :, 1], cpsim.eqgrs[widx].V[:, :, 2],
+                    x1, y1, x2, y2, Lp, Lo)*cpsim.walkers[widx].weight
+                end; end; end; end
             end
             postmeas_simulation(cpsim)
         end
@@ -245,12 +274,14 @@ function run(profilename, previousname)
         eng_bin[end] = eng_bin[end] / wgt_bin[end]
         hop_bin[end] = hop_bin[end] / wgt_bin[end]
         szc_bin[end] = szc_bin[end] / wgt_bin[end]
+        spy_bin[end] = spy_bin[end] / wgt_bin[end]
         println(bidx)
         #
         comm = MPI.COMM_WORLD
         rank = MPI.Comm_rank(comm)
         bstr = string(rank)*string(bidx)
-        save_bin(bstr, eng_bin[end], hop_bin[end], duo_bin[end], grn_bin[end], szc_bin[end])
+        save_bin(bstr, eng_bin[end], hop_bin[end], duo_bin[end],
+        grn_bin[end], szc_bin[end], spy_bin[end])
     end
     #
     println("wgt")

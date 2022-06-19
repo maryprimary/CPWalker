@@ -172,7 +172,6 @@ function HamConfig3(h0::Matrix{Float64}, dtau::Float64,
     #
     ssd = Smat * adjoint(Smat)
     issd = inv(ssd)
-    println("ssd ", ssd)
     #println(log(ssd)*adjoint(h0) - adjoint(h0)*log(ssd))
     #exit()
     #println("Smat overlap")
