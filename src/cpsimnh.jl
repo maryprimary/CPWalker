@@ -96,14 +96,6 @@ function relaxation_simulation(cpsim::CPSim3, bctime::Int64)
         end; end
         #println(sttime, " ", taumat)
         for sidx = 1:1:sttime
-            if sidx == 1
-                for wlk in cpsim.walkers
-                    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
-                    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
-                    update_overlap!(wlk, cpsim.hamiltonian, true)
-                end
-                weight_rescale!(cpsim.walkers)
-            end
             for wlk in cpsim.walkers
                 #step_slice!(wlk, cpsim.hamiltonian, taumat[sidx, :];
                 #E_trial=cpsim.E_trial)
@@ -118,9 +110,17 @@ function relaxation_simulation(cpsim::CPSim3, bctime::Int64)
                 #    #println(cpsim.walkers[1].weight)
                 #    stablize!(wlk, cpsim.hamiltonian)
                 #end
-                step_slice2!(wlk, cpsim.hamiltonian, taumat[sidx, :];
+                if sidx == 1
+                    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
+                    multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
+                    wthres = 1e-13
+                else
+                    wthres = 1e-5
+                end
+                step_slice2!(wlk, cpsim.hamiltonian, taumat[sidx, :], wthres;
                 E_trial=cpsim.E_trial)
                 stablize!(wlk, cpsim.hamiltonian)
+                #@info wlk.weight wlk.overlap
             end
             weight_rescale!(cpsim.walkers)
             popctrl!(cpsim.walkers)
@@ -136,6 +136,7 @@ end
 function E_trial_simulation!(cpsim::CPSim3)
     epochs = Int64(cpsim.beta_cut_intrv//cpsim.stblz_interval)
     growth_engr = Vector{Float64}(undef, epochs)
+    wthres = 1e-5
     #weight_rescale!(cpsim.walkers)
     #popctrl!(cpsim.walkers)
     #println(sum([wlk.weight for wlk in cpsim.walkers]))
@@ -152,22 +153,23 @@ function E_trial_simulation!(cpsim::CPSim3)
         #    step_slice!(wlk, cpsim.hamiltonian, taus; E_trial=cpsim.E_trial)
         #end
         if epidx == 1
-            for wlk in cpsim.walkers
+            wthres = 1e-13
+        else
+            wthres = 1e-5
+        end
+        for wlk in cpsim.walkers
+            if epidx == 1
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
-                update_overlap!(wlk, cpsim.hamiltonian, true)
             end
-            weight_rescale!(cpsim.walkers)
-        end     
-        for wlk in cpsim.walkers
-            step_slice2!(wlk, cpsim.hamiltonian, taus; E_trial=cpsim.E_trial)
+            step_slice2!(wlk, cpsim.hamiltonian, taus, wthres; E_trial=cpsim.E_trial)
         end
         #exp(Δτ * steps * E_gnd) * wgtsum = length(cpsim.walkers)
         #Δτ * steps * E_gnd = ln(length(cpsim.walkers)/wgtsum)
         wgtsum = 0.#sum([wlk.weight for wlk in cpsim.walkers])
         wlkcount = 0
         for wlk in cpsim.walkers
-            if wlk.weight < 1e-5
+            if wlk.weight < wthres
                 continue
             end
             wlkcount += 1
@@ -229,16 +231,15 @@ function premeas_simulation!(cpsim::CPSim3)#, cache)
     #反传之前
     for sidx = 1:1:(sttime-bptime)
         #每次先做一个SSd
-        if sidx == 1
-            for wlk in cpsim.walkers
+        for wlk in cpsim.walkers
+            if sidx == 1
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
-                update_overlap!(wlk, cpsim.hamiltonian, true)
+                wthres = 1e-13
+            else
+                wthres = 1e-5
             end
-            weight_rescale!(cpsim.walkers)
-        end
-        for wlk in cpsim.walkers
-            step_slice2!(wlk, cpsim.hamiltonian, zeros(Int64, cpsim.stblz_interval);
+            step_slice2!(wlk, cpsim.hamiltonian, zeros(Int64, cpsim.stblz_interval), wthres;
             E_trial=cpsim.E_trial)
             stablize!(wlk, cpsim.hamiltonian)
         end
@@ -263,16 +264,15 @@ function premeas_simulation!(cpsim::CPSim3)#, cache)
     #println(sttime, " ", taumat)
     for sidx = (sttime-bptime+1):1:sttime
         #每次先做一个SSd
-        if sidx == 1
-            for wlk in cpsim.walkers
+        for wlk in cpsim.walkers
+            if sidx == 1
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[1])
                 multiply_left!(cpsim.hamiltonian.SSd.V, wlk.Φ[2])
-                update_overlap!(wlk, cpsim.hamiltonian, true)
+                wthres = 1e-13
+            else
+                wthres = 1e-5
             end
-            weight_rescale!(cpsim.walkers)
-        end
-        for wlk in cpsim.walkers
-            step_slice2!(wlk, cpsim.hamiltonian, taumat[sidx+bptime-sttime, :];
+            step_slice2!(wlk, cpsim.hamiltonian, taumat[sidx+bptime-sttime, :], wthres;
             E_trial=cpsim.E_trial)
             stablize!(wlk, cpsim.hamiltonian)
         end

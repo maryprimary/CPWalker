@@ -325,8 +325,8 @@ end
 Lo = 8
 Lp = 1
 np= 3
-nh= 0.1
-U = 2.
+nh= 0.04
+U = 4.
 
 println(count_state_num(np, Lo*Lp))
 h0 = get_ham(np, Lo*Lp, construct_chain_lattice(Lo, Lp, nh), U)

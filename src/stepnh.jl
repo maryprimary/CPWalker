@@ -22,14 +22,16 @@ function step_slice!(wlk::HSWalker3, ham::HamConfig3, tauidxs::Vector{Int64};
     multiply_left!(ham.exp_halfdτHnhd, wlk.Φ[1])
     multiply_left!(ham.exp_halfdτHnhd, wlk.Φ[2])
     update_overlap!(wlk, ham, true)
-    if abs(wlk.weight) < 1e-5
+    if wlk.weight < 1e-13
+        wlk.weight = 0.0
         return
     end
     #除了最后一次，作用e^ΔtV (e^-0.5ΔtH0 e^-0.5ΔtH0)
     for tidx in tauidxs[1:end-1]
         for opidx in 1:1:length(ham.Mzints)
             step_int!(wlk, ham, opidx, tidx)
-            if abs(wlk.weight) < 1e-5
+            if wlk.weight < 1e-13
+                wlk.weight = 0.0
                 return
             end
         end
@@ -37,14 +39,16 @@ function step_slice!(wlk::HSWalker3, ham::HamConfig3, tauidxs::Vector{Int64};
         multiply_left!(ham.exp_dτHnhd, wlk.Φ[1])
         multiply_left!(ham.exp_dτHnhd, wlk.Φ[2])
         update_overlap!(wlk, ham, true)
-        if abs(wlk.weight) < 1e-5
+        if wlk.weight < 1e-13
+            wlk.weight = 0.0
             return
         end
     end
     #最后一次，作用e^ΔtV e^-0.5ΔtH0
     for opidx in 1:1:length(ham.Mzints)
         step_int!(wlk, ham, opidx, tauidxs[end])
-        if abs(wlk.weight) < 1e-5
+        if wlk.weight < 1e-13
+            wlk.weight = 0.0
             return
         end
     end
@@ -52,7 +56,8 @@ function step_slice!(wlk::HSWalker3, ham::HamConfig3, tauidxs::Vector{Int64};
     multiply_left!(ham.exp_halfdτHnhd, wlk.Φ[1])
     multiply_left!(ham.exp_halfdτHnhd, wlk.Φ[2])
     update_overlap!(wlk, ham, true)
-    if abs(wlk.weight) < 1e-5
+    if wlk.weight < 1e-13
+        wlk.weight = 0.0
         return
     end
 end
@@ -61,7 +66,7 @@ end
 """
 向前一个slice(stblz_interval个)
 """
-function step_slice2!(wlk::HSWalker3, ham::HamConfig3, tauidxs::Vector{Int64};
+function step_slice2!(wlk::HSWalker3, ham::HamConfig3, tauidxs::Vector{Int64}, wthres::Float64;
     E_trial::Union{Missing, Float64}=missing)
     if length(tauidxs) == 0
         return
@@ -70,21 +75,29 @@ function step_slice2!(wlk::HSWalker3, ham::HamConfig3, tauidxs::Vector{Int64};
         @info "missing E_trial" maxlog=1
         E_trial = 0.
     end
+    #@info wlk.weight wlk.overlap tauidxs[1]
+    #@assert isfinite(wlk.weight)
+    #@assert isfinite(wlk.overlap)
     # e^-0.5ΔtH0 e^ΔtV (e^-0.5ΔtH0 e^-0.5ΔtH0)  e^ΔtV
     #先做用半个H0
     wlk.weight = exp(0.5*ham.dτ*E_trial) * wlk.weight
+    #@info wlk.weight wlk.overlap tauidxs[1] 2
     #作用
     multiply_left!(ham.exp_halfdτHn, wlk.Φ[1])
     multiply_left!(ham.exp_halfdτHn, wlk.Φ[2])
     update_overlap!(wlk, ham, true)
-    if abs(wlk.weight) < 1e-5
+    #@info wlk.weight wlk.overlap tauidxs[1] 2
+    #exit()
+    if wlk.weight < wthres
+        wlk.weight = 0.0
         return
     end
     #除了最后一次，作用e^ΔtV (e^-0.5ΔtH0 e^-0.5ΔtH0)
     for tidx in tauidxs[1:end-1]
         for opidx in 1:1:length(ham.Mzints)
             step_int!(wlk, ham, opidx, tidx)
-            if abs(wlk.weight) < 1e-5
+            if wlk.weight < wthres
+                wlk.weight = 0.0
                 return
             end
         end
@@ -92,14 +105,16 @@ function step_slice2!(wlk::HSWalker3, ham::HamConfig3, tauidxs::Vector{Int64};
         multiply_left!(ham.exp_dτHn, wlk.Φ[1])
         multiply_left!(ham.exp_dτHn, wlk.Φ[2])
         update_overlap!(wlk, ham, true)
-        if abs(wlk.weight) < 1e-5
+        if wlk.weight < wthres
+            wlk.weight = 0.0
             return
         end
     end
     #最后一次，作用e^ΔtV e^-0.5ΔtH0
     for opidx in 1:1:length(ham.Mzints)
         step_int!(wlk, ham, opidx, tauidxs[end])
-        if abs(wlk.weight) < 1e-5
+        if wlk.weight < wthres
+            wlk.weight = 0.0
             return
         end
     end
@@ -107,7 +122,8 @@ function step_slice2!(wlk::HSWalker3, ham::HamConfig3, tauidxs::Vector{Int64};
     multiply_left!(ham.exp_halfdτHn, wlk.Φ[1])
     multiply_left!(ham.exp_halfdτHn, wlk.Φ[2])
     update_overlap!(wlk, ham, true)
-    if abs(wlk.weight) < 1e-5
+    if wlk.weight < wthres
+        wlk.weight = 0.0
         return
     end
 end
@@ -184,7 +200,7 @@ function step_int_diff_fl!(wlk::HSWalker3, ham::HamConfig3,
     #newphi2[st2, :] .= (axfld.ΔV[1, fl2]+1) * newphi2[st2, :]
     #ovlp2 = det(ham.ΦtT[fl2].V * newphi2)
     #println(newovlp[1], " ", ovlp1*ovlp2, " ", wlk.overlap, " ", tauidx)
-    #@assert isapprox(ovlp1*ovlp2, newovlp[1], atol=1e-8)
+    #@assert isapprox(ovlp1*ovlp2, newovlp[1], rtol=1e-8)
     #throw(error("abs"))
     #println(axfld.ΔV[1, 1], " ", axfld.ΔV[1, 2])
     #println(wlk.Φ[1].V)

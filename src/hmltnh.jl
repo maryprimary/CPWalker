@@ -42,6 +42,7 @@ function get_ham_info(hnh, np, cutoffbeta; verbose=false)
     #就能保证 S e^(-bH) S^+ 厄米
     @assert all(isapprox.(imeval, 0., atol=1e-10))
     Smat = eig.vectors
+    println(maximum(imag(Smat)))
     @assert all(isapprox.(imag(Smat), 0., atol=1e-10))
     Smat = real(Smat)
     #
@@ -77,6 +78,7 @@ function RHFRecur(h0, cutoffbeta, np, mfu)
     ssize = size(h0)[1]
     #
     ebhlmat, Smat, phiup, eqgr = get_ham_info(h0, np, cutoffbeta; verbose=true)
+    println("c0 ", [eqgr[idx, idx] for idx = 1:1:ssize])
     #
     #
     for iidx = 1:1:100

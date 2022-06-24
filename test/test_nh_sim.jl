@@ -178,9 +178,9 @@ function run(profilename, previousname)
     Lp = 1
     Δτ = 0.05
     np = 3
-    nh = 0.0
+    nh = 0.04
     U = parse(Float64, ARGS[1])
-    NWLK = 100
+    NWLK = 500
     CBT = 5.0
     #
     h0 = construct_chain_lattice(Lo, Lp, nh)

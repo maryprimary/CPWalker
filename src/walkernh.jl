@@ -23,7 +23,7 @@ function update_overlap!(wlk::HSWalker3, ham::HamConfig3, weight_update::Bool)
     ovlp_inv1 = ham.ΦtT[1] * wlk.Φ[1]
     #ovlp
     detovlp1 = det(ovlp_inv1)
-    if detovlp1 < 1e-5
+    if detovlp1 < 1e-13
         wlk.weight = 0.
         wlk.overlap = 0.
         return
@@ -33,7 +33,7 @@ function update_overlap!(wlk::HSWalker3, ham::HamConfig3, weight_update::Bool)
     ovlp_inv2 = ham.ΦtT[2] * wlk.Φ[2]
     #ovlp
     detovlp2 = det(ovlp_inv2)
-    if detovlp2 < 1e-5
+    if detovlp2 < 1e-13
         wlk.weight = 0.
         wlk.overlap = 0.
         return
@@ -44,7 +44,7 @@ function update_overlap!(wlk::HSWalker3, ham::HamConfig3, weight_update::Bool)
     ovlpnew = detovlp1 * detovlp2
     #这个时候就停止了
     if weight_update
-        if ovlpnew < 1e-8#innerprod(ovlpnew, wlk.overlap) < 1e-8
+        if ovlpnew < 1e-13#innerprod(ovlpnew, wlk.overlap) < 1e-8
             wlk.weight = 0.
         else
             wlk.weight = ovlpnew / wlk.overlap * wlk.weight
@@ -208,9 +208,9 @@ function stablize!(wlk::HSWalker3, ham::HamConfig3; checkovlp=true, checkwgt=tru
     update_overlap!(wlk, ham, false)
     if checkovlp && abs(wlk.overlap) > 1e-5 && abs(testoverlap - wlk.overlap) > 1e-6 
         println(testoverlap, " ", wlk.overlap)
-        println(wlk)
-        println(tempwlkphi1)
-        println(tempwlkphi2)
+        #println(wlk)
+        #println(tempwlkphi1)
+        #println(tempwlkphi2)
         throw(error("precision low"))
     end
 end
